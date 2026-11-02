@@ -397,6 +397,7 @@ fn validate_staged_mod(staging: &Path) -> io::Result<ModManifest> {
                     format!("unsupported mod asset format: {}", relative.display()),
                 ));
             }
+            validate_png_header(&assets.join(relative))?;
         }
         has_payload |= !asset_files.is_empty();
     }
@@ -409,6 +410,29 @@ fn validate_staged_mod(staging: &Path) -> io::Result<ModManifest> {
     }
 
     Ok(manifest)
+}
+
+fn validate_png_header(path: &Path) -> io::Result<()> {
+    let mut file = File::open(path)?;
+    let mut header = [0u8; 24];
+    file.read_exact(&mut header).map_err(|error| {
+        io::Error::new(io::ErrorKind::InvalidData, format!("invalid PNG {}: {error}", path.display()))
+    })?;
+    if &header[..8] != b"\x89PNG\r\n\x1a\n" || &header[12..16] != b"IHDR" {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("invalid PNG header: {}", path.display()),
+        ));
+    }
+    let width = u32::from_be_bytes([header[16], header[17], header[18], header[19]]);
+    let height = u32::from_be_bytes([header[20], header[21], header[22], header[23]]);
+    if width == 0 || height == 0 || width > 8192 || height > 8192 {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("PNG dimensions are invalid or too large: {}", path.display()),
+        ));
+    }
+    Ok(())
 }
 
 fn validate_relative_path(value: &str) -> io::Result<PathBuf> {
@@ -551,16 +575,19 @@ fn parse_zip_archive(data: &[u8]) -> io::Result<Vec<ArchiveEntry>> {
     let total_entries = read_u16(data, eocd + 10)?;
     let central_size = read_u32(data, eocd + 12)? as usize;
     let central_offset = read_u32(data, eocd + 16)? as usize;
+    let comment_length = read_u16(data, eocd + 20)? as usize;
+    if eocd.checked_add(22).and_then(|offset| offset.checked_add(comment_length)) != Some(data.len()) {
+        return Err(io::Error::new(io::ErrorKind::InvalidData, "ZIP end record comment length is invalid"));
+    }
     if disk_number != 0 || central_disk != 0 || disk_entries != total_entries {
         return Err(io::Error::new(io::ErrorKind::InvalidData, "multi-disk ZIP archives are not supported"));
     }
     if total_entries == u16::MAX || central_size == u32::MAX as usize || central_offset == u32::MAX as usize {
         return Err(io::Error::new(io::ErrorKind::InvalidData, "ZIP64 archives are not supported"));
     }
-    if total_entries as usize > MAX_ARCHIVE_ENTRIES
-        || central_offset.checked_add(central_size).is_none()
-        || central_offset + central_size > data.len()
-    {
+    let central_end = central_offset.checked_add(central_size)
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "ZIP central directory offset overflow"))?;
+    if total_entries as usize > MAX_ARCHIVE_ENTRIES || central_end > eocd {
         return Err(io::Error::new(io::ErrorKind::InvalidData, "ZIP central directory is invalid or too large"));
     }
 
@@ -584,8 +611,8 @@ fn parse_zip_archive(data: &[u8]) -> io::Result<Vec<ArchiveEntry>> {
         let end = offset
             .checked_add(46 + name_length + extra_length + comment_length)
             .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "ZIP entry length overflow"))?;
-        if end > data.len() {
-            return Err(io::Error::new(io::ErrorKind::InvalidData, "truncated ZIP central directory"));
+        if end > central_end {
+            return Err(io::Error::new(io::ErrorKind::InvalidData, "truncated or oversized ZIP central directory"));
         }
         if flags & 0x0001 != 0 || flags & 0x0040 != 0 {
             return Err(io::Error::new(io::ErrorKind::InvalidData, "encrypted ZIP entries are not supported"));
