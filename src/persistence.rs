@@ -198,6 +198,10 @@ pub fn install_imported_save(source: &Path) -> io::Result<PathBuf> {
     Ok(target)
 }
 
+pub fn validate_save(path: &Path) -> io::Result<()> {
+    load_game_with_metadata(path).map(|_| ())
+}
+
 pub fn export_save(source: &Path, destination: &Path) -> io::Result<()> {
     let _ = load_game_with_metadata(source)?;
     let mut input = File::open(source)?;
