@@ -1017,7 +1017,7 @@ mod tests {
 
     #[test]
     fn asset_replacement_order_is_priority_then_stable_id() {
-        let mut providers = vec![
+        let mut providers = [
             ("low".to_string(), 0),
             ("high-b".to_string(), 5),
             ("high-a".to_string(), 5),

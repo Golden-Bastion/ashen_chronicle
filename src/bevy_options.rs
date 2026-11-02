@@ -16,6 +16,12 @@ use crate::desktop_display;
 use crate::input::InputEvent;
 use crate::mod_manager::InstalledMod;
 
+const MOD_ACTIONS_PER_MOD: usize = 4;
+
+fn mod_action_start_index(mod_index: usize) -> usize {
+    1 + mod_index * MOD_ACTIONS_PER_MOD
+}
+
 #[derive(Resource)]
 pub(crate) struct OptionsState {
     selected: usize,
@@ -286,7 +292,7 @@ fn options_input(
 fn options_selection_end(options: &OptionsState) -> usize {
     match options.tab {
         0 => options.saves.len() + 1,
-        1 => 1 + options.mods.len() * 4,
+        1 => mod_action_start_index(options.mods.len()),
         2 => {
             #[cfg(not(target_os = "android"))]
             {
@@ -332,8 +338,8 @@ fn activate_mods_action(
         return;
     }
     let action_index = options.selected - 1;
-    let mod_index = action_index / 4;
-    let action = action_index % 4;
+    let mod_index = action_index / MOD_ACTIONS_PER_MOD;
+    let action = action_index % MOD_ACTIONS_PER_MOD;
     let Some(item) = options.mods.get(mod_index).cloned() else {
         return;
     };
@@ -714,7 +720,7 @@ fn render_mods_tab(commands: &mut Commands, panel: Entity, options: &OptionsStat
                 item.asset_count
             ),
         );
-        let base = 1 + mod_index * 4;
+        let base = mod_action_start_index(mod_index);
         spawn_option_button(
             commands,
             panel,
@@ -752,12 +758,13 @@ fn render_mods_tab(commands: &mut Commands, panel: Entity, options: &OptionsStat
             options.selected == base + 3,
         );
     }
+    let back_index = mod_action_start_index(options.mods.len());
     spawn_option_button(
         commands,
         panel,
-        1 + options.mods.len() * 4,
+        back_index,
         "Back",
-        options.selected == 1 + options.mods.len() * 4,
+        options.selected == back_index,
     );
 }
 
@@ -918,7 +925,9 @@ mod tests {
 
     #[test]
     fn mod_action_slots_are_stable() {
-        assert_eq!(1 + 1 * 4, 5);
-        assert_eq!(1 + 1 * 4 + 3, 8);
+        let second_mod_first_action = mod_action_start_index(1);
+        let second_mod_last_action = second_mod_first_action + MOD_ACTIONS_PER_MOD - 1;
+        assert_eq!(second_mod_first_action, 5);
+        assert_eq!(second_mod_last_action, 8);
     }
 }
