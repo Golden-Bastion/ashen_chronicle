@@ -607,13 +607,13 @@ fn render_saves_tab(commands: &mut Commands, panel: Entity, options: &OptionsSta
         panel,
         "Import a save from a file or export an existing save. Imports never overwrite an existing slot.",
     );
-    spawn_option_button(commands, panel, 0, "Import save");
+    spawn_option_button(commands, panel, 0, "Import save", options.selected == 0);
     for (index, save) in options.saves.iter().enumerate() {
         let name = save.file_name().map(|value| value.to_string_lossy().to_string())
             .unwrap_or_else(|| save.display().to_string());
-        spawn_option_button(commands, panel, index + 1, format!("Export: {name}"));
+        spawn_option_button(commands, panel, index + 1, format!("Export: {name}"), options.selected == index + 1);
     }
-    spawn_option_button(commands, panel, options.saves.len() + 1, "Back");
+    spawn_option_button(commands, panel, options.saves.len() + 1, "Back", options.selected == options.saves.len() + 1);
 }
 
 fn render_mods_tab(commands: &mut Commands, panel: Entity, options: &OptionsState) {
@@ -623,7 +623,7 @@ fn render_mods_tab(commands: &mut Commands, panel: Entity, options: &OptionsStat
         panel,
         "Install ZIP packages, enable or disable mods, adjust load priority, or remove installed mods. Changes require restart.",
     );
-    spawn_option_button(commands, panel, 0, "Install mod ZIP");
+    spawn_option_button(commands, panel, 0, "Install mod ZIP", options.selected == 0);
     if options.mods.is_empty() {
         bevy_presentation::spawn_muted_label(commands, panel, "No mods installed.");
     }
@@ -641,9 +641,10 @@ fn render_mods_tab(commands: &mut Commands, panel: Entity, options: &OptionsStat
         spawn_option_button(
             commands, panel, base,
             format!("{}: {}", if item.enabled { "Disable" } else { "Enable" }, item.manifest.name),
+            options.selected == base,
         );
-        spawn_option_button(commands, panel, base + 1, format!("Lower priority: {}", item.manifest.name));
-        spawn_option_button(commands, panel, base + 2, format!("Raise priority: {}", item.manifest.name));
+        spawn_option_button(commands, panel, base + 1, format!("Lower priority: {}", item.manifest.name), options.selected == base + 1);
+        spawn_option_button(commands, panel, base + 2, format!("Raise priority: {}", item.manifest.name), options.selected == base + 2);
         spawn_option_button(
             commands,
             panel,
@@ -653,20 +654,23 @@ fn render_mods_tab(commands: &mut Commands, panel: Entity, options: &OptionsStat
             } else {
                 format!("Remove: {}", item.manifest.name)
             },
+            options.selected == base + 3,
         );
     }
-    spawn_option_button(commands, panel, 1 + options.mods.len() * 4, "Back");
+    spawn_option_button(commands, panel, 1 + options.mods.len() * 4, "Back", options.selected == 1 + options.mods.len() * 4);
 }
 
-fn spawn_option_button(commands: &mut Commands, panel: Entity, index: usize, label: impl Into<String>) {
+fn spawn_option_button(
+    commands: &mut Commands,
+    panel: Entity,
+    index: usize,
+    label: impl Into<String>,
+    selected: bool,
+) {
     let button = bevy_presentation::spawn_action_button(commands, panel, index, "storage", label);
-    if options_selected(commands, button, index) {
+    if selected {
         commands.entity(button).insert(UiSelected);
     }
-}
-
-fn options_selected(_commands: &Commands, _button: Entity, _index: usize) -> bool {
-    false
 }
 
 fn render_display_tab(commands: &mut Commands, panel: Entity, options: &OptionsState) {
