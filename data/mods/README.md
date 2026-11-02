@@ -76,6 +76,6 @@ Only safe relative paths are accepted, and the current runtime supports PNG asse
 
 Enabled state and priority are stored separately from the package manifest so the player's preferences are not overwritten by package contents. The Options screen lists installed mods and supports enabling/disabling, changing priority, removing, and ZIP installation.
 
-Mod changes take effect on the next full game initialization. A running campaign keeps the content and asset set with which it started. Asset replacement conflicts and their winning providers can be inspected through the developer console's `content` diagnostics.
+Mod changes take effect on the next full game initialization. The process captures one active mod snapshot at startup, and both campaign content and asset resolution use that snapshot. Enabling, disabling, installing, or reprioritizing a mod does not change the current session. Removing a mod hides it from the manager immediately but retains its files until the next startup, when the pending removal is finalized. Asset replacement conflicts and their winning providers can be inspected through the developer console's `content` diagnostics.
 
 Saves record the active mod IDs, names, and versions. Loading warns about missing, disabled, or version-mismatched dependencies. The player may continue at their own responsibility. There is no automatic mod update or save migration system yet; compatibility remains the mod author's responsibility.
