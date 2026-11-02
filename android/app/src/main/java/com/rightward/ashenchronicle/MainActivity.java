@@ -360,16 +360,20 @@ public class MainActivity extends GameActivity {
     }
 
     private void prepareBundledAssets() {
-        File root = new File(getFilesDir(), GAME_DIRECTORY_NAME);
-        File bundledAssets = new File(root, "bundled/assets");
+        File bundled = new File(new File(getFilesDir(), GAME_DIRECTORY_NAME), "bundled");
+        File bundledAssets = new File(bundled, "assets");
+        File bundledMods = new File(bundled, "mods");
         if (!bundledAssets.isDirectory() && !bundledAssets.mkdirs()) {
             Log.w(TAG, "Could not create bundled asset directory " + bundledAssets);
-            return;
+        }
+        if (!bundledMods.isDirectory() && !bundledMods.mkdirs()) {
+            Log.w(TAG, "Could not create bundled mod directory " + bundledMods);
         }
         try {
             copyAssetDirectory("assets", bundledAssets);
+            copyAssetDirectory("mods", bundledMods);
         } catch (IOException exception) {
-            Log.w(TAG, "Could not prepare bundled base-game assets", exception);
+            Log.w(TAG, "Could not prepare bundled game content", exception);
         }
     }
 
