@@ -340,29 +340,23 @@ fn activate_selection(
                     Ok(loaded) => {
                         let state = loaded.game;
                         let mut warnings = validate_loaded_state(&state);
-                        match crate::mod_manager::list_installed_mods() {
-                            Ok(installed) => {
-                                for dependency in &loaded.mod_dependencies {
-                                    match installed.iter().find(|item| item.manifest.id == dependency.id) {
-                                        None => warnings.push(format!(
-                                            "Missing mod: {} ({}) version {}.",
-                                            dependency.name, dependency.id, dependency.version
-                                        )),
-                                        Some(item) if !item.enabled => warnings.push(format!(
-                                            "Required mod is disabled: {} ({}) version {}.",
-                                            dependency.name, dependency.id, dependency.version
-                                        )),
-                                        Some(item) if item.manifest.version != dependency.version => warnings.push(format!(
-                                            "Mod version mismatch: {} ({}) save={} installed={}.",
-                                            dependency.name, dependency.id, dependency.version, item.manifest.version
-                                        )),
-                                        Some(_) => {}
-                                    }
-                                }
+                        let active_mods = crate::mod_manager::active_mods();
+                        for dependency in &loaded.mod_dependencies {
+                            match active_mods.iter().find(|item| item.manifest.id == dependency.id) {
+                                None => warnings.push(format!(
+                                    "Missing mod: {} ({}) version {}.",
+                                    dependency.name, dependency.id, dependency.version
+                                )),
+                                Some(item) if !item.enabled => warnings.push(format!(
+                                    "Required mod is disabled: {} ({}) version {}.",
+                                    dependency.name, dependency.id, dependency.version
+                                )),
+                                Some(item) if item.manifest.version != dependency.version => warnings.push(format!(
+                                    "Mod version mismatch: {} ({}) save={} installed={}.",
+                                    dependency.name, dependency.id, dependency.version, item.manifest.version
+                                )),
+                                Some(_) => {}
                             }
-                            Err(error) => warnings.push(format!(
-                                "Could not verify saved mod dependencies: {error}"
-                            )),
                         }
                         // Keep the selected slot as the active save path, including
                         // imported slots with collision-safe alternate filenames.
