@@ -19,6 +19,8 @@ pub struct CampaignContent {
     pub item_visuals: Vec<ItemVisualContent>,
     #[serde(default)]
     pub events: Vec<EventContent>,
+    #[serde(skip)]
+    pub loaded_mods: Vec<ModManifest>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
