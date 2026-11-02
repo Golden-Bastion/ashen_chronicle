@@ -3,7 +3,7 @@ use crate::game_paths::GamePaths;
 use atomic_write_file::AtomicWriteFile;
 use flate2::read::DeflateDecoder;
 use serde::{Deserialize, Serialize};
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::fs::{self, File};
 use std::io::{self, Read, Write};
 use std::path::{Component, Path, PathBuf};
@@ -22,10 +22,70 @@ pub(crate) struct InstalledMod {
     pub asset_count: usize,
 }
 
+static ACTIVE_MODS: std::sync::OnceLock<Vec<InstalledMod>> = std::sync::OnceLock::new();
+
+/// Capture the mod set used by the current process. Settings edits made from
+/// Options are intentionally not reflected until the next full initialization.
+pub(crate) fn initialize_active_mods() {
+    if ACTIVE_MODS.get().is_some() {
+        return;
+    }
+    if let Err(error) = apply_pending_removals() {
+        eprintln!("warning: could not finish pending mod removals: {error}");
+    }
+    let mods = match list_installed_mods() {
+        Ok(mods) => mods,
+        Err(error) => {
+            eprintln!("warning: could not initialize the active mod set: {error}");
+            Vec::new()
+        }
+    };
+    let _ = ACTIVE_MODS.set(mods);
+}
+
+pub(crate) fn active_mods() -> &'static [InstalledMod] {
+    ACTIVE_MODS.get().map(Vec::as_slice).unwrap_or(&[])
+}
+
+fn apply_pending_removals() -> io::Result<()> {
+    let paths = GamePaths::get();
+    let mut settings = read_settings(&paths.mod_settings_path)?;
+    if settings.removed_mods.is_empty() {
+        return Ok(());
+    }
+    let mods_root = fs::canonicalize(&paths.mods_dir)?;
+    let mut completed = Vec::new();
+
+    for id in &settings.removed_mods {
+        let candidate = paths.mods_dir.join(id);
+        if !candidate.exists() {
+            completed.push(id.clone());
+            continue;
+        }
+        let canonical = fs::canonicalize(&candidate)?;
+        if !canonical.starts_with(&mods_root) || canonical == mods_root {
+            return Err(io::Error::new(
+                io::ErrorKind::PermissionDenied,
+                format!("refusing to remove mod outside managed storage: {id}"),
+            ));
+        }
+        fs::remove_dir_all(canonical)?;
+        completed.push(id.clone());
+    }
+
+    for id in completed {
+        settings.removed_mods.remove(&id);
+        settings.mods.remove(&id);
+    }
+    write_settings(&paths.mod_settings_path, &settings)
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 struct ModSettingsFile {
     #[serde(default)]
     mods: BTreeMap<String, ModPreferences>,
+    #[serde(default)]
+    removed_mods: BTreeSet<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -86,6 +146,9 @@ pub(crate) fn list_installed_mods() -> io::Result<Vec<InstalledMod>> {
             continue;
         }
 
+        if settings.removed_mods.contains(&manifest.id) {
+            continue;
+        }
         let preferences = settings.mods.get(&manifest.id);
         let enabled = preferences.map(|value| value.enabled).unwrap_or(manifest.enabled);
         let priority = preferences.map(|value| value.priority).unwrap_or(manifest.priority);
@@ -150,9 +213,11 @@ pub(crate) fn remove_mod(id: &str) -> io::Result<()> {
         ));
     }
 
-    fs::remove_dir_all(&mod_root)?;
     let mut settings = read_settings(&GamePaths::get().mod_settings_path)?;
     settings.mods.remove(id);
+    settings.removed_mods.insert(id.to_string());
+    // Keep the package on disk until process restart so the active runtime
+    // snapshot can continue resolving its assets for the current campaign.
     write_settings(&GamePaths::get().mod_settings_path, &settings)
 }
 
@@ -222,7 +287,7 @@ pub(crate) fn install_mod_archive(archive_path: &Path) -> io::Result<InstalledMo
 }
 
 pub(crate) fn resolve_asset_reference(reference: &str) -> io::Result<PathBuf> {
-    let installed = list_installed_mods()?;
+    let installed = active_mods();
 
     if let Some(mod_reference) = reference.strip_prefix("mod:") {
         let (id, relative) = mod_reference.split_once('/').ok_or_else(|| {
@@ -258,7 +323,7 @@ pub(crate) fn resolve_asset_reference(reference: &str) -> io::Result<PathBuf> {
 }
 
 pub(crate) fn asset_override_conflicts() -> io::Result<Vec<AssetOverrideConflict>> {
-    let installed = list_installed_mods()?;
+    let installed = active_mods();
     let mut by_path: BTreeMap<String, Vec<(String, i32)>> = BTreeMap::new();
 
     for item in installed.iter().filter(|item| item.enabled) {
