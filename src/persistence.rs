@@ -366,6 +366,37 @@ mod tests {
     }
 
     #[test]
+    fn save_metadata_round_trips_mod_dependencies() {
+        let dir = temp_dir();
+        let path = character_save_path(&dir, "Dependency Test");
+        let state = create_new_state(
+            "Test World",
+            WorldMode::New,
+            "Tester".to_string(),
+            "Dependency Test".to_string(),
+        );
+        let dependencies = vec![
+            SavedModDependency {
+                id: "campaign.example".into(),
+                name: "Example Campaign".into(),
+                version: "1.2.3".into(),
+            },
+            SavedModDependency {
+                id: "assets.example".into(),
+                name: "Example Assets".into(),
+                version: "0.4.0".into(),
+            },
+        ];
+
+        save_game_with_dependencies(&path, &state, &dependencies)
+            .expect("save with dependencies should succeed");
+        let loaded = load_game_with_metadata(&path)
+            .expect("save metadata should load");
+        assert_eq!(loaded.mod_dependencies, dependencies);
+        fs::remove_dir_all(&dir).expect("temporary directory should be removed");
+    }
+
+    #[test]
     fn older_save_without_spatial_fields_loads_with_defaults() {
         let dir = temp_dir();
         let path = dir.join("older-save.json");
