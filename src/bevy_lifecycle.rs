@@ -1348,10 +1348,12 @@ mod tests {
 
     #[test]
     fn character_save_paths_use_the_dedicated_saves_directory() {
-        let path = character_save_path(&GamePaths::get().saves_dir, "Ash Walker");
+        let saves_dir = &GamePaths::get().saves_dir;
+        let path = character_save_path(saves_dir, "Ash Walker");
+        assert_eq!(path.parent(), Some(saves_dir.as_path()));
         assert_eq!(
-            path,
-            PathBuf::from("saves/ashen_chronicle_save_Ash Walker.json.gz")
+            path.file_name().and_then(|name| name.to_str()),
+            Some("ashen_chronicle_save_Ash Walker.json.gz")
         );
     }
 
