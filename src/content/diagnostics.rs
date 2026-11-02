@@ -4,14 +4,15 @@ use std::fmt::Write;
 pub fn campaign_content_load_diagnostics() -> String {
     let report = load_campaign_content_report();
     let paths = crate::game_paths::GamePaths::get();
-    let installed = crate::mod_manager::list_installed_mods().unwrap_or_default();
+    let configured = crate::mod_manager::list_installed_mods().unwrap_or_default();
+    let active = crate::mod_manager::active_mods();
     let conflicts = crate::mod_manager::asset_override_conflicts().unwrap_or_default();
 
     let mut output = String::new();
     let _ = writeln!(output, "internal game data: {}", paths.root.display());
     let _ = writeln!(output, "bundled assets: {}", paths.bundled_assets_dir.display());
-    let _ = writeln!(output, "installed mods: {}", installed.len());
-    for item in &installed {
+    let _ = writeln!(output, "configured mods (settings apply next restart): {}", configured.len());
+    for item in &configured {
         let _ = writeln!(
             output,
             "  {} | {} | version={} enabled={} priority={} assets={}",
@@ -19,8 +20,17 @@ pub fn campaign_content_load_diagnostics() -> String {
             item.enabled, item.priority, item.asset_count
         );
     }
-    let _ = writeln!(output, "active mods loaded: {}", report.loaded_mods.len());
-    let _ = writeln!(output, "asset replacement conflicts: {}", conflicts.len());
+    let _ = writeln!(output, "active mod snapshot: {}", active.len());
+    for item in active {
+        let _ = writeln!(
+            output,
+            "  {} | {} | version={} enabled={} priority={} assets={}",
+            item.manifest.id, item.manifest.name, item.manifest.version,
+            item.enabled, item.priority, item.asset_count
+        );
+    }
+    let _ = writeln!(output, "campaign content mods processed: {}", report.loaded_mods.len());
+    let _ = writeln!(output, "asset replacement conflicts (active snapshot): {}", conflicts.len());
     for conflict in conflicts {
         let providers = conflict.providers.iter()
             .map(|(id, priority)| format!("{id} (priority {priority})"))

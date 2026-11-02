@@ -17,15 +17,20 @@ pub fn load_campaign_content() -> CampaignContent {
 pub fn load_campaign_content_report() -> ContentLoadReport {
     let mut report = ContentLoadReport::with_content(default_campaign_content());
     let installed = crate::mod_manager::active_mods();
+    let mut pending_mod_events = Vec::new();
 
     for item in installed.iter().filter(|item| item.enabled) {
         let manifest = item.manifest.clone();
-        // Its assets remain active even if its optional content file is invalid,
-        // so record the dependency before attempting to merge campaign content.
+        // Assets remain active even if this mod's optional content file is invalid.
         report.loaded_mods.push(manifest.clone());
         match load_mod_content(&item.directory, &manifest) {
-            Ok(Some(mod_content)) => {
-                merge_campaign_content(&mut report.content, mod_content, &mut report.warnings);
+            Ok(Some(mut mod_content)) => {
+                pending_mod_events.push((
+                    item.priority,
+                    manifest.id.clone(),
+                    std::mem::take(&mut mod_content.events),
+                ));
+                merge_campaign_content(&mut report.content, mod_content);
             }
             Ok(None) => {},
             Err(error) => report.warnings.push(format!(
@@ -34,6 +39,10 @@ pub fn load_campaign_content_report() -> ContentLoadReport {
             )),
         }
     }
+
+    // Cross-mod references are checked only after all enabled mods have contributed
+    // their locations, factions, and event IDs.
+    merge_mod_events(&mut report.content, pending_mod_events, &mut report.warnings);
     report.content.loaded_mods = report.loaded_mods.clone();
     report.warnings.extend(report.content.validate());
     report
@@ -65,20 +74,14 @@ fn load_mod_content(mod_root: &Path, manifest: &ModManifest) -> io::Result<Optio
     load_content_file(&canonical_path).map(Some)
 }
 
-fn merge_campaign_content(
-    base: &mut CampaignContent,
-    incoming: CampaignContent,
-    warnings: &mut Vec<String>,
-) {
+fn merge_campaign_content(base: &mut CampaignContent, incoming: CampaignContent) {
     base.world.region = incoming.world.region;
     merge_vec_by_key(
         &mut base.world.locations,
         incoming.world.locations,
         |entry| entry.id.clone(),
     );
-    merge_vec_by_key(&mut base.factions, incoming.factions, |entry| {
-        entry.id.clone()
-    });
+    merge_vec_by_key(&mut base.factions, incoming.factions, |entry| entry.id.clone());
     merge_vec_by_key(&mut base.npcs, incoming.npcs, |entry| entry.id.clone());
     merge_vec_by_key(&mut base.quests, incoming.quests, |entry| entry.id.clone());
     merge_vec_by_key(&mut base.encounters, incoming.encounters, |entry| {
@@ -89,6 +92,17 @@ fn merge_campaign_content(
     });
     merge_vec_by_key(&mut base.item_visuals, incoming.item_visuals, |entry| {
         entry.item_name.clone()
+    });
+}
+
+fn merge_mod_events(
+    base: &mut CampaignContent,
+    mut mod_events: Vec<(i32, String, Vec<EventContent>)>,
+    warnings: &mut Vec<String>,
+) {
+    // Match asset precedence: highest priority wins, then reverse lexical mod ID.
+    mod_events.sort_by(|left, right| {
+        right.0.cmp(&left.0).then_with(|| right.1.cmp(&left.1))
     });
 
     let locations: HashSet<&str> = base
@@ -102,83 +116,75 @@ fn merge_campaign_content(
         .iter()
         .map(|entry| entry.name.as_str())
         .collect();
-    let existing: HashSet<String> = base.events.iter().map(|event| event.id.clone()).collect();
-    let known: HashSet<String> = existing
-        .iter()
-        .cloned()
-        .chain(incoming.events.iter().map(|event| event.id.clone()))
-        .collect();
-    let accepted = filter_valid_events(
-        incoming.events,
-        &locations,
-        &factions,
-        &known,
-        &existing,
-        "mod content",
-        warnings,
-    );
-    base.events.extend(accepted);
-}
+    let existing_ids: HashSet<String> =
+        base.events.iter().map(|event| event.id.clone()).collect();
 
-fn filter_valid_events(
-    events: Vec<EventContent>,
-    locations: &HashSet<&str>,
-    factions: &HashSet<&str>,
-    known_ids: &HashSet<String>,
-    existing_ids: &HashSet<String>,
-    source: &str,
-    warnings: &mut Vec<String>,
-) -> Vec<EventContent> {
-    let mut accepted = Vec::new();
     let mut seen_ids = existing_ids.clone();
-    let mut pending = Vec::new();
-    for event in events {
-        let mut issues = validate_event_content(&event, locations, factions, known_ids);
-        if !seen_ids.insert(event.id.clone()) {
-            issues.push(format!("duplicate event id {}", event.id));
+    let mut known_ids = existing_ids.clone();
+    let mut candidates = Vec::new();
+
+    for (_, mod_id, events) in mod_events {
+        for event in events {
+            if !seen_ids.insert(event.id.clone()) {
+                warnings.push(format!(
+                    "rejecting event '{}' from mod {}: duplicate event ID",
+                    event.id, mod_id
+                ));
+                continue;
+            }
+            known_ids.insert(event.id.clone());
+            candidates.push((mod_id.clone(), event));
         }
+    }
+
+    let mut pending = Vec::new();
+    for (mod_id, event) in candidates {
+        let issues = validate_event_content(&event, &locations, &factions, &known_ids);
         if issues.is_empty() {
-            pending.push(event);
+            pending.push((mod_id, event));
         } else {
             warnings.push(format!(
-                "rejecting event '{}' from {}: {}",
+                "rejecting event '{}' from mod {}: {}",
                 event.id,
-                source,
+                mod_id,
                 issues.join("; ")
             ));
         }
     }
+
+    // References to events that fail validation are pruned in dependency order.
     loop {
         let available: HashSet<String> = existing_ids
             .iter()
             .cloned()
-            .chain(accepted.iter().map(|event: &EventContent| event.id.clone()))
-            .chain(pending.iter().map(|event| event.id.clone()))
+            .chain(pending.iter().map(|(_, event)| event.id.clone()))
             .collect();
         let mut removed = false;
         let mut next = Vec::new();
-        for event in pending {
-            let prior = event
+
+        for (mod_id, event) in pending {
+            let prior_id = event
                 .conditions
                 .as_ref()
                 .and_then(|conditions| conditions.prior_event_id.as_deref());
-            if let Some(prior_id) = prior.filter(|id| !available.contains(*id)) {
+            if let Some(prior_id) = prior_id.filter(|id| !available.contains(*id)) {
                 warnings.push(format!(
-                    "rejecting event '{}' from {}: prior event '{}' was rejected or unavailable",
-                    event.id, source, prior_id
+                    "rejecting event '{}' from mod {}: prior event '{}' was rejected or unavailable",
+                    event.id, mod_id, prior_id
                 ));
                 removed = true;
             } else {
-                next.push(event);
+                next.push((mod_id, event));
             }
         }
+
         pending = next;
         if !removed {
             break;
         }
     }
-    accepted.extend(pending);
-    accepted
+
+    base.events.extend(pending.into_iter().map(|(_, event)| event));
 }
 
 fn validate_event_content(
@@ -292,30 +298,77 @@ mod tests {
         }
     }
 
+    fn empty_mod_content() -> CampaignContent {
+        let mut content = default_campaign_content();
+        content.world.locations.clear();
+        content.factions.clear();
+        content.npcs.clear();
+        content.quests.clear();
+        content.encounters.clear();
+        content.atmospheres.clear();
+        content.item_visuals.clear();
+        content.events.clear();
+        content
+    }
+
     #[test]
     fn invalid_events_are_rejected_and_reported() {
-        let mut warnings = Vec::new();
-        let locations = HashSet::from(["Ashen Gate"]);
-        let factions = HashSet::from(["Cinder Wardens"]);
-        let known = HashSet::from(["good.event".into(), "bad.event".into()]);
+        let mut base = default_campaign_content();
         let mut invalid = valid_event("bad.event");
         invalid.weight = 0;
-        invalid.conditions = Some(EventConditionContent {
-            locations: vec!["Unknown Place".into()],
-            ..Default::default()
-        });
-        let accepted = filter_valid_events(
-            vec![valid_event("good.event"), invalid],
-            &locations,
-            &factions,
-            &known,
-            &HashSet::new(),
-            "test content",
+        let mut warnings = Vec::new();
+
+        merge_mod_events(
+            &mut base,
+            vec![(1, "invalid.mod".into(), vec![invalid])],
             &mut warnings,
         );
-        assert_eq!(accepted.len(), 1);
-        assert_eq!(accepted[0].id, "good.event");
-        assert!(warnings[0].contains("zero weight"));
-        assert!(warnings[0].contains("unknown location"));
+
+        assert!(!base.events.iter().any(|event| event.id == "bad.event"));
+        assert!(warnings.iter().any(|warning| warning.contains("zero weight")));
+    }
+
+    #[test]
+    fn mod_events_can_reference_definitions_from_other_mods() {
+        let mut base = default_campaign_content();
+        let mut event_mod = empty_mod_content();
+        let mut event = valid_event("events.cross_mod_reference");
+        event.conditions = Some(EventConditionContent {
+            locations: vec!["Later Reach".into()],
+            faction_name: Some("Later Ward".into()),
+            ..Default::default()
+        });
+        event_mod.events.push(event);
+        let pending = vec![(
+            10,
+            "events.mod".to_string(),
+            std::mem::take(&mut event_mod.events),
+        )];
+
+        // The event is supplied before the location and faction it references.
+        merge_campaign_content(&mut base, event_mod);
+
+        let mut definitions_mod = empty_mod_content();
+        definitions_mod.world.locations.push(LocationContent {
+            id: "location.later-reach".into(),
+            name: "Later Reach".into(),
+            description: "A test location supplied by another mod.".into(),
+            dangerous: false,
+            exits: Vec::new(),
+            scene_art: None,
+            scene_image: None,
+            spatial_layout: None,
+        });
+        definitions_mod.factions.push(FactionContent {
+            id: "faction.later-ward".into(),
+            name: "Later Ward".into(),
+        });
+        merge_campaign_content(&mut base, definitions_mod);
+
+        let mut warnings = Vec::new();
+        merge_mod_events(&mut base, pending, &mut warnings);
+
+        assert!(base.events.iter().any(|candidate| candidate.id == "events.cross_mod_reference"));
+        assert!(warnings.is_empty(), "unexpected warnings: {warnings:?}");
     }
 }

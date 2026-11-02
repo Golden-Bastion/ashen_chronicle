@@ -305,7 +305,7 @@ fn activate_saves_action(
     gameplay: &GameplayState,
 ) {
     if options.selected == 0 {
-        import_save(options);
+        import_save(options, lifecycle);
     } else if options.selected <= options.saves.len() {
         let path = options.saves[options.selected - 1].clone();
         export_save(options, &path);
@@ -384,7 +384,7 @@ fn activate_display_action(
     }
 }
 
-fn import_save(options: &mut OptionsState) {
+fn import_save(options: &mut OptionsState, _lifecycle: &mut LifecycleState) {
     #[cfg(not(target_os = "android"))]
     {
         let Some(source) = rfd::FileDialog::new()
@@ -399,6 +399,7 @@ fn import_save(options: &mut OptionsState) {
             Ok(target) => {
                 options.message = Some(format!("Imported save as {}.", target.file_name().unwrap_or_default().to_string_lossy()));
                 refresh_catalogs(options);
+                _lifecycle.refresh_saved_games();
             }
             Err(error) => options.message = Some(format!("Could not import save: {error}")),
         }

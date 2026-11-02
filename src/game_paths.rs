@@ -160,11 +160,12 @@ fn packaged_data_directories() -> (PathBuf, PathBuf) {
 }
 
 fn seed_bundled_mods(paths: &GamePaths) -> io::Result<()> {
-    let marker = paths.config_dir.join("bundled_mods_seeded");
-    if marker.exists() || !paths.bundled_mods_dir.is_dir() {
+    if !paths.bundled_mods_dir.is_dir() {
         return Ok(());
     }
 
+    // Re-scan on every launch so new bundled mod IDs reach existing users.
+    // Existing installations remain user-managed and are never silently updated.
     for entry in fs::read_dir(&paths.bundled_mods_dir)? {
         let entry = entry?;
         let source = entry.path();
@@ -188,10 +189,26 @@ fn seed_bundled_mods(paths: &GamePaths) -> io::Result<()> {
         };
         crate::mod_manager::validate_manifest(&manifest)?;
         let destination = paths.mods_dir.join(&manifest.id);
-        copy_directory_without_overwriting(&source, &destination)?;
+        if destination.exists() {
+            continue;
+        }
+
+        let staging = paths.mods_dir.join(format!(".bundled-{}-staging", manifest.id));
+        if staging.exists() {
+            fs::remove_dir_all(&staging)?;
+        }
+        let result = copy_directory_without_overwriting(&source, &staging)
+            .and_then(|_| fs::rename(&staging, &destination));
+        if let Err(error) = result {
+            let _ = fs::remove_dir_all(&staging);
+            if destination.exists() {
+                continue;
+            }
+            return Err(error);
+        }
     }
 
-    fs::write(marker, b"1\n")
+    Ok(())
 }
 
 fn copy_directory_without_overwriting(source: &Path, destination: &Path) -> io::Result<()> {

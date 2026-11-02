@@ -63,6 +63,19 @@ pub fn save_game_with_dependencies(
     state: &GameState,
     mod_dependencies: &[SavedModDependency],
 ) -> io::Result<()> {
+    let json = serialize_save(state, mod_dependencies)?;
+    let file = AtomicWriteFile::open(path)?;
+    let mut encoder = GzEncoder::new(file, Compression::default());
+    encoder.write_all(&json)?;
+    let file = encoder.finish()?;
+    file.commit()?;
+    Ok(())
+}
+
+fn serialize_save(
+    state: &GameState,
+    mod_dependencies: &[SavedModDependency],
+) -> io::Result<Vec<u8>> {
     let payload = SaveFile {
         save_file_version: SAVE_FILE_VERSION,
         game: state,
@@ -73,14 +86,31 @@ pub fn save_game_with_dependencies(
             .unwrap_or_default(),
         mod_dependencies: mod_dependencies.to_vec(),
     };
-    let json = serde_json::to_vec_pretty(&payload)
-        .map_err(|error| io::Error::other(error.to_string()))?;
-    let file = AtomicWriteFile::open(path)?;
-    let mut encoder = GzEncoder::new(file, Compression::default());
-    encoder.write_all(&json)?;
-    let file = encoder.finish()?;
-    file.commit()?;
-    Ok(())
+    serde_json::to_vec_pretty(&payload)
+        .map_err(|error| io::Error::other(error.to_string()))
+}
+
+fn write_save_file_exclusive(
+    path: &Path,
+    state: &GameState,
+    mod_dependencies: &[SavedModDependency],
+) -> io::Result<()> {
+    let json = serialize_save(state, mod_dependencies)?;
+    // create_new is the no-overwrite guarantee, unlike a racy existence check.
+    let file = fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(path)?;
+    let result = (|| {
+        let mut encoder = GzEncoder::new(file, Compression::default());
+        encoder.write_all(&json)?;
+        let file = encoder.finish()?;
+        file.sync_all()
+    })();
+    if result.is_err() {
+        let _ = fs::remove_file(path);
+    }
+    result
 }
 
 pub fn load_game(path: &Path) -> io::Result<GameState> {
@@ -173,29 +203,32 @@ pub fn install_imported_save(source: &Path) -> io::Result<PathBuf> {
     let loaded = load_game_with_metadata(source)?;
     let paths = crate::game_paths::GamePaths::get();
     let canonical = character_save_path(&paths.saves_dir, &loaded.game.character.name);
-    let target = if canonical.exists() {
-        let mut suffix = 1u32;
-        loop {
-            let candidate = paths.saves_dir.join(format!(
+    let safe_name = sanitize_filename_component(&loaded.game.character.name);
+    let mut suffix = 0u32;
+
+    loop {
+        let target = if suffix == 0 {
+            canonical.clone()
+        } else {
+            paths.saves_dir.join(format!(
                 "{}_{}_imported_{}.{}",
-                SAVE_BASE_NAME,
-                sanitize_filename_component(&loaded.game.character.name),
-                suffix,
-                SAVE_EXTENSION
-            ));
-            if !candidate.exists() {
-                break candidate;
+                SAVE_BASE_NAME, safe_name, suffix, SAVE_EXTENSION
+            ))
+        };
+
+        match write_save_file_exclusive(&target, &loaded.game, &loaded.mod_dependencies) {
+            Ok(()) => return Ok(target),
+            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
+                suffix = suffix.checked_add(1).ok_or_else(|| {
+                    io::Error::new(
+                        io::ErrorKind::AlreadyExists,
+                        "no unused save filename is available",
+                    )
+                })?;
             }
-            suffix = suffix.saturating_add(1);
-            if suffix == u32::MAX {
-                return Err(io::Error::new(io::ErrorKind::AlreadyExists, "no unused save filename is available"));
-            }
+            Err(error) => return Err(error),
         }
-    } else {
-        canonical
-    };
-    save_game_with_dependencies(&target, &loaded.game, &loaded.mod_dependencies)?;
-    Ok(target)
+    }
 }
 
 pub fn validate_save(path: &Path) -> io::Result<()> {
@@ -362,6 +395,28 @@ mod tests {
         assert_ne!(loaded.world.locations[0].description, original_description);
         assert_eq!(loaded.world.locations[0].exits, original_exits);
         assert_eq!(loaded.world.history.len(), history_len);
+        fs::remove_dir_all(&dir).expect("temporary directory should be removed");
+    }
+
+    #[test]
+    fn exclusive_save_creation_never_overwrites_an_existing_file() {
+        let dir = temp_dir();
+        let path = dir.join("existing.save");
+        fs::write(&path, b"keep this file").expect("existing file should be created");
+        let state = create_new_state(
+            "Test World",
+            WorldMode::New,
+            "Tester".to_string(),
+            "Import Collision".to_string(),
+        );
+
+        let error = write_save_file_exclusive(&path, &state, &[])
+            .expect_err("exclusive creation must reject an existing destination");
+        assert_eq!(error.kind(), io::ErrorKind::AlreadyExists);
+        assert_eq!(
+            fs::read(&path).expect("existing file should remain readable"),
+            b"keep this file"
+        );
         fs::remove_dir_all(&dir).expect("temporary directory should be removed");
     }
 

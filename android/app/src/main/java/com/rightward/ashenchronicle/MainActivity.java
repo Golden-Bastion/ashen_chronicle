@@ -445,7 +445,7 @@ public class MainActivity extends GameActivity {
             String[] nested = getAssets().list(childAssetPath);
             if (nested != null && nested.length > 0) {
                 copyAssetDirectory(childAssetPath, target);
-            } else if (!target.exists()) {
+            } else {
                 copyAssetFile(childAssetPath, target);
             }
         }
