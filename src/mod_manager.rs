@@ -419,8 +419,17 @@ pub(crate) fn validate_manifest(manifest: &ModManifest) -> io::Result<()> {
             "mod ID must use lowercase ASCII letters, digits, dots, underscores, or hyphens",
         ));
     }
-    if manifest.name.trim().is_empty() {
-        return Err(io::Error::new(io::ErrorKind::InvalidData, "mod name cannot be empty"));
+    if manifest.name.trim().is_empty() || manifest.name.len() > 160 {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "mod name must contain 1 to 160 bytes",
+        ));
+    }
+    if manifest.version.trim().is_empty() || manifest.version.len() > 64 {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "mod version must contain 1 to 64 bytes",
+        ));
     }
     if let Some(content_file) = manifest.content_file.as_deref() {
         validate_relative_path(content_file)?;
@@ -509,15 +518,26 @@ fn validate_png_header(path: &Path) -> io::Result<()> {
 }
 
 fn validate_relative_path(value: &str) -> io::Result<PathBuf> {
-    if value.is_empty() || value.contains('\\') || value.starts_with('/') || value.contains(':') {
-        return Err(io::Error::new(io::ErrorKind::InvalidInput, "path must be a safe relative path"));
+    if value.is_empty()
+        || value.len() > 1024
+        || value.contains('\\')
+        || value.starts_with('/')
+        || value.contains(':')
+    {
+        return Err(io::Error::new(io::ErrorKind::InvalidInput, "path must be a safe relative path of at most 1024 bytes"));
     }
     let path = Path::new(value);
-    if !path
-        .components()
-        .all(|component| matches!(component, Component::Normal(_)))
+    let components = path.components().collect::<Vec<_>>();
+    if components.is_empty()
+        || components.len() > 64
+        || !components
+            .iter()
+            .all(|component| matches!(component, Component::Normal(_)))
     {
-        return Err(io::Error::new(io::ErrorKind::InvalidInput, "path traversal is not allowed"));
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "path traversal or excessive path depth is not allowed",
+        ));
     }
     Ok(path.to_path_buf())
 }
