@@ -918,7 +918,6 @@ mod tests {
 
     #[test]
     fn mod_action_slots_are_stable() {
-        assert_eq!(1 + 0 * 4, 1);
         assert_eq!(1 + 1 * 4, 5);
         assert_eq!(1 + 1 * 4 + 3, 8);
     }

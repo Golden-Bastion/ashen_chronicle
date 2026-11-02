@@ -127,7 +127,8 @@ fn write_save_file_exclusive(
     result
 }
 
-pub fn load_game(path: &Path) -> io::Result<GameState> {
+#[cfg(test)]
+fn load_game(path: &Path) -> io::Result<GameState> {
     load_game_with_metadata(path).map(|loaded| loaded.game)
 }
 

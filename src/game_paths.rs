@@ -16,7 +16,9 @@ pub struct GamePaths {
     pub saves_dir: PathBuf,
     pub mods_dir: PathBuf,
     pub imports_dir: PathBuf,
+    #[cfg(target_os = "android")]
     pub save_imports_dir: PathBuf,
+    #[cfg(target_os = "android")]
     pub mod_imports_dir: PathBuf,
     pub config_dir: PathBuf,
     pub mod_settings_path: PathBuf,
@@ -34,7 +36,9 @@ impl GamePaths {
         let saves_dir = root.join(SAVES_DIRECTORY_NAME);
         let mods_dir = root.join(MODS_DIRECTORY_NAME);
         let imports_dir = root.join(IMPORTS_DIRECTORY_NAME);
+        #[cfg(target_os = "android")]
         let save_imports_dir = imports_dir.join("saves");
+        #[cfg(target_os = "android")]
         let mod_imports_dir = imports_dir.join("mods");
         let config_dir = root.join("config");
 
@@ -42,7 +46,9 @@ impl GamePaths {
             root.as_path(),
             saves_dir.as_path(),
             mods_dir.as_path(),
+            #[cfg(target_os = "android")]
             save_imports_dir.as_path(),
+            #[cfg(target_os = "android")]
             mod_imports_dir.as_path(),
             config_dir.as_path(),
         ] {
@@ -64,7 +70,9 @@ impl GamePaths {
             saves_dir,
             mods_dir,
             imports_dir,
+            #[cfg(target_os = "android")]
             save_imports_dir,
+            #[cfg(target_os = "android")]
             mod_imports_dir,
             config_dir,
             bundled_assets_dir,
@@ -85,10 +93,6 @@ impl GamePaths {
         GAME_PATHS
             .get()
             .expect("GamePaths::initialize() must run before storage is accessed")
-    }
-
-    pub fn base_asset_path(&self, relative: &Path) -> PathBuf {
-        self.bundled_assets_dir.join(relative)
     }
 }
 
