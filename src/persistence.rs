@@ -29,9 +29,11 @@ struct LoadedSaveFile {
     game: GameState,
     #[serde(default)]
     runtime_generated_events: Vec<EventContent>,
+    #[serde(default)]
+    mod_dependencies: Vec<SavedModDependency>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)
 pub struct SavedModDependency {
     pub id: String,
     pub name: String,
@@ -46,13 +48,21 @@ pub struct LoadedSave {
 const MAX_SAVE_BYTES: u64 = 8 * 1024 * 1024;
 
 pub fn save_game(path: &Path, state: &GameState) -> io::Result<()> {
-    let mod_dependencies = state.campaign_content.as_ref()
+    let dependencies = state.campaign_content.as_ref()
         .map(|content| content.loaded_mods.iter().map(|manifest| SavedModDependency {
             id: manifest.id.clone(),
             name: manifest.name.clone(),
             version: manifest.version.clone(),
         }).collect())
         .unwrap_or_default();
+    save_game_with_dependencies(path, state, &dependencies)
+}
+
+pub fn save_game_with_dependencies(
+    path: &Path,
+    state: &GameState,
+    mod_dependencies: &[SavedModDependency],
+) -> io::Result<()> {
     let payload = SaveFile {
         save_file_version: SAVE_FILE_VERSION,
         game: state,
@@ -61,7 +71,7 @@ pub fn save_game(path: &Path, state: &GameState) -> io::Result<()> {
                 .filter(|event| is_runtime_generated_event(&event.id))
                 .cloned().collect())
             .unwrap_or_default(),
-        mod_dependencies,
+        mod_dependencies: mod_dependencies.to_vec(),
     };
     let json = serde_json::to_vec_pretty(&payload)
         .map_err(|error| io::Error::other(error.to_string()))?;
@@ -158,6 +168,48 @@ fn is_runtime_generated_event(event_id: &str) -> bool {
         .iter()
         .any(|prefix| event_id.starts_with(prefix))
 }
+
+pub fn install_imported_save(source: &Path) -> io::Result<PathBuf> {
+    let loaded = load_game_with_metadata(source)?;
+    let paths = crate::game_paths::GamePaths::get();
+    let canonical = character_save_path(&paths.saves_dir, &loaded.game.character.name);
+    let target = if canonical.exists() {
+        let mut suffix = 1u32;
+        loop {
+            let candidate = paths.saves_dir.join(format!(
+                "{}_{}_imported_{}.{}",
+                SAVE_BASE_NAME,
+                sanitize_filename_component(&loaded.game.character.name),
+                suffix,
+                SAVE_EXTENSION
+            ));
+            if !candidate.exists() {
+                break candidate;
+            }
+            suffix = suffix.saturating_add(1);
+            if suffix == u32::MAX {
+                return Err(io::Error::new(io::ErrorKind::AlreadyExists, "no unused save filename is available"));
+            }
+        }
+    } else {
+        canonical
+    };
+    save_game_with_dependencies(&target, &loaded.game, &loaded.mod_dependencies)?;
+    Ok(target)
+}
+
+pub fn export_save(source: &Path, destination: &Path) -> io::Result<()> {
+    let _ = load_game_with_metadata(source)?;
+    if destination.exists() {
+        return Err(io::Error::new(io::ErrorKind::AlreadyExists, "export destination already exists"));
+    }
+    let mut input = File::open(source)?;
+    let mut output = AtomicWriteFile::open(destination)?;
+    io::copy(&mut input, &mut output)?;
+    output.commit()?;
+    Ok(())
+}
+
 
 pub fn character_save_path(directory: &Path, character_name: &str) -> PathBuf {
     directory.join(format!(
