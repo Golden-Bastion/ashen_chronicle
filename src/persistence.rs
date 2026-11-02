@@ -33,7 +33,7 @@ struct LoadedSaveFile {
     mod_dependencies: Vec<SavedModDependency>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct SavedModDependency {
     pub id: String,
     pub name: String,
