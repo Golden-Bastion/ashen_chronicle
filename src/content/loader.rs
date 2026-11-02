@@ -16,15 +16,9 @@ pub fn load_campaign_content() -> CampaignContent {
 
 pub fn load_campaign_content_report() -> ContentLoadReport {
     let mut report = ContentLoadReport::with_content(default_campaign_content());
-    let installed = match crate::mod_manager::list_installed_mods() {
-        Ok(installed) => installed,
-        Err(error) => {
-            report.warnings.push(format!("Could not inspect installed mods: {error}"));
-            return report;
-        }
-    };
+    let installed = crate::mod_manager::active_mods();
 
-    for item in installed.into_iter().filter(|item| item.enabled) {
+    for item in installed.iter().filter(|item| item.enabled) {
         let manifest = item.manifest.clone();
         // Its assets remain active even if its optional content file is invalid,
         // so record the dependency before attempting to merge campaign content.
