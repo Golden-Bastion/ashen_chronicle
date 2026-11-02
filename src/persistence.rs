@@ -7,7 +7,7 @@ use std::fs::{self, File};
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 
-const SAVE_FILE_VERSION: u32 = 2;
+const SAVE_FILE_VERSION: u32 = 3;
 pub const SAVE_BASE_NAME: &str = "ashen_chronicle_save";
 const SAVE_EXTENSION: &str = "json.gz";
 const LEGACY_SAVE_FILE_NAME: &str = "ashen_chronicle_save.json";
@@ -200,13 +200,17 @@ pub fn install_imported_save(source: &Path) -> io::Result<PathBuf> {
 
 pub fn export_save(source: &Path, destination: &Path) -> io::Result<()> {
     let _ = load_game_with_metadata(source)?;
-    if destination.exists() {
-        return Err(io::Error::new(io::ErrorKind::AlreadyExists, "export destination already exists"));
-    }
     let mut input = File::open(source)?;
-    let mut output = AtomicWriteFile::open(destination)?;
-    io::copy(&mut input, &mut output)?;
-    output.commit()?;
+    let mut output = fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(destination)?;
+    if let Err(error) = io::copy(&mut input, &mut output) {
+        drop(output);
+        let _ = fs::remove_file(destination);
+        return Err(error);
+    }
+    output.sync_all()?;
     Ok(())
 }
 
