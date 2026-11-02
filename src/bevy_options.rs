@@ -252,8 +252,8 @@ fn options_input(
                 }
             }
             InputEvent::Confirm => match options.tab {
-                0 => activate_saves_action(&mut options, &mut lifecycle),
-                1 => activate_mods_action(&mut options),
+                0 => activate_saves_action(&mut options, &mut lifecycle, &mut navigation, &gameplay),
+                1 => activate_mods_action(&mut options, &mut lifecycle, &mut navigation, &gameplay),
                 2 => activate_display_action(
                     &mut options,
                     &mut lifecycle,
@@ -290,21 +290,34 @@ fn options_selection_end(options: &OptionsState) -> usize {
     }
 }
 
-fn activate_saves_action(options: &mut OptionsState, lifecycle: &mut LifecycleState) {
+fn activate_saves_action(
+    options: &mut OptionsState,
+    lifecycle: &mut LifecycleState,
+    navigation: &mut NavigationState,
+    gameplay: &GameplayState,
+) {
     if options.selected == 0 {
         import_save(options);
     } else if options.selected <= options.saves.len() {
         let path = options.saves[options.selected - 1].clone();
         export_save(options, &path);
     } else {
-        lifecycle.refresh_saved_games();
-        options.message = None;
+        close_options(lifecycle, navigation, options, gameplay);
     }
 }
 
-fn activate_mods_action(options: &mut OptionsState) {
+fn activate_mods_action(
+    options: &mut OptionsState,
+    lifecycle: &mut LifecycleState,
+    navigation: &mut NavigationState,
+    gameplay: &GameplayState,
+) {
     if options.selected == 0 {
         import_mod(options);
+        return;
+    }
+    if options.selected == options_selection_end(options) {
+        close_options(lifecycle, navigation, options, gameplay);
         return;
     }
     let action_index = options.selected - 1;
