@@ -26,12 +26,14 @@ pub fn load_campaign_content_report() -> ContentLoadReport {
 
     for item in installed.into_iter().filter(|item| item.enabled) {
         let manifest = item.manifest.clone();
+        // Its assets remain active even if its optional content file is invalid,
+        // so record the dependency before attempting to merge campaign content.
+        report.loaded_mods.push(manifest.clone());
         match load_mod_content(&item.directory, &manifest) {
             Ok(Some(mod_content)) => {
                 merge_campaign_content(&mut report.content, mod_content, &mut report.warnings);
-                report.loaded_mods.push(manifest);
             }
-            Ok(None) => report.loaded_mods.push(manifest),
+            Ok(None) => {},
             Err(error) => report.warnings.push(format!(
                 "could not load mod {} ({}) from {}: {}",
                 manifest.id, manifest.name, item.directory.display(), error
