@@ -121,7 +121,8 @@ fn refresh_catalogs(options: &mut OptionsState) {
             Vec::new()
         }
     };
-    options.selected = options.selected.min(options_selection_end(options));
+    let maximum_selection = options_selection_end(options);
+    options.selected = options.selected.min(maximum_selection);
 }
 
 #[cfg(target_os = "android")]
@@ -150,6 +151,7 @@ fn refresh_storage(
             Ok(entries) => entries,
             Err(error) => {
                 options.message = Some(format!("Could not inspect imported files: {error}"));
+                options.dirty = true;
                 continue;
             }
         };
@@ -181,6 +183,7 @@ fn refresh_storage(
                 }
                 Err(error) => {
                     options.message = Some(format!("Could not import {}: {error}", source.display()));
+                    options.dirty = true;
                 }
             }
         }
