@@ -359,11 +359,9 @@ fn activate_selection(
                                 Some(_) => {}
                             }
                         }
-                        let save_path = character_save_path(
-                            &GamePaths::get().saves_dir,
-                            &state.character.name,
-                        );
-                        lifecycle.pending_state = Some((state, save_path));
+                        // Keep the selected slot as the active save path, including
+                        // imported slots with collision-safe alternate filenames.
+                        lifecycle.pending_state = Some((state, path.clone()));
                         lifecycle.message = if warnings.is_empty() {
                             None
                         } else {
@@ -516,6 +514,10 @@ impl LifecycleState {
         self.save_files = available_save_files();
         self.selected = 0;
         self.dirty = true;
+    }
+
+    pub(crate) fn refresh_saved_games(&mut self) {
+        self.refresh_saves();
     }
 
     pub(crate) fn start_new_game(&mut self, navigation: &mut NavigationState) {
