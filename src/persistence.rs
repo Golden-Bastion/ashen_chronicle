@@ -205,12 +205,12 @@ pub fn export_save(source: &Path, destination: &Path) -> io::Result<()> {
         .write(true)
         .create_new(true)
         .open(destination)?;
-    if let Err(error) = io::copy(&mut input, &mut output) {
+    let result = io::copy(&mut input, &mut output).and_then(|_| output.sync_all());
+    if let Err(error) = result {
         drop(output);
         let _ = fs::remove_file(destination);
         return Err(error);
     }
-    output.sync_all()?;
     Ok(())
 }
 
