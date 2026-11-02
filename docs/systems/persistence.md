@@ -1,18 +1,39 @@
 # Persistence System
 
-The persistence system stores the world and character state while keeping inherited worlds compatible across character deaths and later versions.
+The persistence system stores world and character state while keeping inherited worlds compatible across character deaths and game versions.
+
+## Internal storage
+
+Each installation has one authoritative, application-managed game-data root.
+
+- Desktop uses the operating system's local application-data directory.
+- Android uses private application files storage.
+- The root contains the save collection, installed mods, import staging folders, and game-managed configuration.
+- The active root is not configurable from the Options screen. The process working directory is not used to locate saves, mods, or assets.
+- External storage is accessed only when the player explicitly imports or exports a file through the Options screen.
+
+Bundled base content and base-game art remain protected package resources. Bundled default mods are seeded into the internal mod catalog on first initialization. User-installed mods and mod preferences are managed in that same catalog.
 
 ## Save format
 
-Saves use the existing JSON payload format compressed with gzip and are stored under the game root's `saves/` directory. Character-specific filenames follow the form `ashen_chronicle_save_<character>.json.gz` after filename sanitization.
+Saves use the existing JSON payload format compressed with gzip and are stored under the internal root's `saves/` directory. Character-specific filenames follow the form `ashen_chronicle_save_<character>.json.gz` after filename sanitization.
 
-Legacy uncompressed `ashen_chronicle_save.json` saves remain loadable. Save migration uses defaulted fields and explicit migration handling when new progression or time data is introduced.
+The save envelope records the active mod dependencies at save time. Each dependency includes its stable mod ID, display name, and version. When loading, the game checks those dependencies against currently installed and enabled mods. Missing, disabled, or version-mismatched dependencies are reported before the player continues; the player may proceed at their own responsibility.
 
-## Game data root configuration
+There is no automatic mod upgrade, save migration, or compatibility layer. Mod authors are responsible for maintaining compatibility between their releases and saves that depend on them.
 
-The desktop game-data root can be changed from the dedicated Options screen. Desktop display mode is stored separately in the user's OS configuration directory so fullscreen/windowed preset selection survives launches without becoming part of game data or saves. The selected path is stored in the user's OS configuration directory rather than inside the selected game root, so changing roots does not lose the setting itself. The new root is applied on the next launch; the running session continues using its already-initialized root.
+Legacy uncompressed `ashen_chronicle_save.json` payloads remain readable when encountered inside the current internal root. This compatibility does not imply migration from old, user-selected storage locations.
 
-On Android, the user-facing game folder is managed through the Storage Access Framework. Rust uses an app-scoped filesystem working root obtained from the Android Activity, while the Activity mirrors editable `data/mods/`, `data/assets/`, and `saves/` content to the selected shared folder. Android also keeps a private `config.json` in app data and mirrors it to the selected game folder. The shared configuration is a recovery mirror only; the current persisted SAF URI in app preferences takes precedence, and the actual read/write permission remains private Android app state.
+## Options: save import and export
+
+The Options screen lists available saves and supports importing or exporting individual saves.
+
+- Imported saves are parsed and validated before installation.
+- Import never overwrites an existing save slot. A collision receives a distinct imported filename.
+- Export validates the selected save and refuses to overwrite an existing destination.
+- Desktop uses native file dialogs. Android uses the system document picker and copies the selected file into a private import staging directory before validation.
+
+Collection-level backup and cloud synchronization are outside the current scope.
 
 ## World and character boundaries
 
@@ -22,14 +43,14 @@ When a character dies, the next character can inherit the world without inheriti
 
 ## Saving and loading
 
-Saving is tied to safe meditation rather than quitting. The start and load flows explicitly select compatible saves instead of silently loading a save. Character-specific save discovery preserves the selected save path.
+Saving is tied to safe meditation rather than quitting. The start and load flows explicitly select compatible saves instead of silently loading a save. Loading preserves the selected save slot as the active path, including imported slots with collision-safe filenames.
 
 Loading validates runtime references and reports broken or inconsistent save data clearly.
 
 ## Compatibility
 
-Persistence changes should preserve older saves where practical. New fields should have safe defaults or explicit migration paths, and malformed compressed data should produce a stable invalid-data error rather than crashing through an unrelated failure.
+New save-envelope fields use defaults so saves created before mod dependency metadata remain loadable. Malformed compressed data produces a stable invalid-data error rather than crashing through an unrelated failure.
 
 ## Design direction
 
-Keep the save payload focused on persistent game state. Runtime-only campaign content should be rehydrated from the current content definitions instead of duplicated inside save files.
+Keep the save payload focused on persistent game state. Runtime-only campaign content is rehydrated from the current content definitions and active mod set instead of duplicated inside save files.
