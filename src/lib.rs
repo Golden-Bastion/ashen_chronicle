@@ -17,13 +17,12 @@ mod bevy_touch;
 mod content;
 #[cfg(not(target_os = "android"))]
 mod desktop_display;
-#[cfg(not(target_os = "android"))]
-mod desktop_storage;
 mod events;
 mod game;
 mod game_paths;
 mod input;
 mod model;
+mod mod_manager;
 mod persistence;
 mod presentation;
 pub mod procedural;
