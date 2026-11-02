@@ -123,6 +123,7 @@ mod tests {
             atmospheres: vec![],
             item_visuals: vec![],
             events: vec![],
+            loaded_mods: vec![],
         };
 
         assert_eq!(content.seed_world(&mut world), 1);

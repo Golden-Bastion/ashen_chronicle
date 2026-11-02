@@ -48,7 +48,7 @@ pub struct LoadedSave {
 const MAX_SAVE_BYTES: u64 = 8 * 1024 * 1024;
 
 pub fn save_game(path: &Path, state: &GameState) -> io::Result<()> {
-    let dependencies = state
+    let dependencies: Vec<SavedModDependency> = state
         .campaign_content
         .as_ref()
         .map(|content| {
