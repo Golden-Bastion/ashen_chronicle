@@ -19,6 +19,8 @@ struct SaveFile<'a> {
     game: &'a GameState,
     #[serde(default)]
     runtime_generated_events: Vec<EventContent>,
+    #[serde(default)]
+    mod_dependencies: Vec<SavedModDependency>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -29,28 +31,40 @@ struct LoadedSaveFile {
     runtime_generated_events: Vec<EventContent>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SavedModDependency {
+    pub id: String,
+    pub name: String,
+    pub version: String,
+}
+
+pub struct LoadedSave {
+    pub game: GameState,
+    pub mod_dependencies: Vec<SavedModDependency>,
+}
+
 const MAX_SAVE_BYTES: u64 = 8 * 1024 * 1024;
 
 pub fn save_game(path: &Path, state: &GameState) -> io::Result<()> {
+    let mod_dependencies = state.campaign_content.as_ref()
+        .map(|content| content.loaded_mods.iter().map(|manifest| SavedModDependency {
+            id: manifest.id.clone(),
+            name: manifest.name.clone(),
+            version: manifest.version.clone(),
+        }).collect())
+        .unwrap_or_default();
     let payload = SaveFile {
         save_file_version: SAVE_FILE_VERSION,
         game: state,
-        runtime_generated_events: state
-            .campaign_content
-            .as_ref()
-            .map(|content| {
-                content
-                    .events
-                    .iter()
-                    .filter(|event| is_runtime_generated_event(&event.id))
-                    .cloned()
-                    .collect()
-            })
+        runtime_generated_events: state.campaign_content.as_ref()
+            .map(|content| content.events.iter()
+                .filter(|event| is_runtime_generated_event(&event.id))
+                .cloned().collect())
             .unwrap_or_default(),
+        mod_dependencies,
     };
-    let json =
-        serde_json::to_vec_pretty(&payload).map_err(|err| io::Error::other(err.to_string()))?;
-
+    let json = serde_json::to_vec_pretty(&payload)
+        .map_err(|error| io::Error::other(error.to_string()))?;
     let file = AtomicWriteFile::open(path)?;
     let mut encoder = GzEncoder::new(file, Compression::default());
     encoder.write_all(&json)?;
@@ -60,6 +74,10 @@ pub fn save_game(path: &Path, state: &GameState) -> io::Result<()> {
 }
 
 pub fn load_game(path: &Path) -> io::Result<GameState> {
+    load_game_with_metadata(path).map(|loaded| loaded.game)
+}
+
+pub fn load_game_with_metadata(path: &Path) -> io::Result<LoadedSave> {
     let file = File::open(path)?;
     if file.metadata()?.len() > MAX_SAVE_BYTES {
         return Err(io::Error::new(
@@ -132,7 +150,7 @@ pub fn load_game(path: &Path) -> io::Result<GameState> {
         }
     }
     game.campaign_content = Some(content);
-    Ok(game)
+    Ok(LoadedSave { game, mod_dependencies: parsed.mod_dependencies })
 }
 
 fn is_runtime_generated_event(event_id: &str) -> bool {
@@ -301,6 +319,7 @@ mod tests {
             save_file_version: SAVE_FILE_VERSION,
             game: &state,
             runtime_generated_events: Vec::new(),
+            mod_dependencies: Vec::new(),
         };
         let mut json: serde_json::Value =
             serde_json::to_value(payload).expect("save should serialize");
@@ -416,6 +435,7 @@ mod tests {
             save_file_version: SAVE_FILE_VERSION,
             game: &state,
             runtime_generated_events: Vec::new(),
+            mod_dependencies: Vec::new(),
         };
         fs::write(
             &path,
