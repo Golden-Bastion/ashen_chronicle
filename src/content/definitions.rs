@@ -183,8 +183,8 @@ pub struct ModManifest {
     pub priority: i32,
     #[serde(default = "default_true")]
     pub enabled: bool,
-    #[serde(default = "default_mod_content_file")]
-    pub content_file: String,
+    #[serde(default)]
+    pub content_file: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -459,6 +459,4 @@ fn default_true() -> bool {
     true
 }
 
-fn default_mod_content_file() -> String {
-    "content.json".to_string()
-}
+
