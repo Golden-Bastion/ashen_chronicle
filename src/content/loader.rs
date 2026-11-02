@@ -336,14 +336,22 @@ mod tests {
         event.conditions = Some(EventConditionContent {
             locations: vec!["Later Reach".into()],
             faction_name: Some("Later Ward".into()),
+            prior_event_id: Some("events.later_dependency".into()),
             ..Default::default()
         });
         event_mod.events.push(event);
-        let pending = vec![(
-            10,
-            "events.mod".to_string(),
-            std::mem::take(&mut event_mod.events),
-        )];
+        let pending = vec![
+            (
+                10,
+                "events.mod".to_string(),
+                std::mem::take(&mut event_mod.events),
+            ),
+            (
+                1,
+                "definitions.mod".to_string(),
+                vec![valid_event("events.later_dependency")],
+            ),
+        ];
 
         // The event is supplied before the location and faction it references.
         merge_campaign_content(&mut base, event_mod);
@@ -369,6 +377,7 @@ mod tests {
         merge_mod_events(&mut base, pending, &mut warnings);
 
         assert!(base.events.iter().any(|candidate| candidate.id == "events.cross_mod_reference"));
+        assert!(base.events.iter().any(|candidate| candidate.id == "events.later_dependency"));
         assert!(warnings.is_empty(), "unexpected warnings: {warnings:?}");
     }
 }
