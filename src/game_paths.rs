@@ -21,6 +21,7 @@ pub struct GamePaths {
     pub config_dir: PathBuf,
     pub mod_settings_path: PathBuf,
     pub bundled_assets_dir: PathBuf,
+    pub bundled_mods_dir: PathBuf,
 }
 
 impl GamePaths {
@@ -49,10 +50,13 @@ impl GamePaths {
         }
 
         #[cfg(target_os = "android")]
-        let bundled_assets_dir = root.join("bundled").join("assets");
+        let (bundled_assets_dir, bundled_mods_dir) = {
+            let bundled = root.join("bundled");
+            (bundled.join("assets"), bundled.join("mods"))
+        };
 
         #[cfg(not(target_os = "android"))]
-        let bundled_assets_dir = discover_bundled_assets_dir();
+        let (bundled_assets_dir, bundled_mods_dir) = packaged_data_directories();
 
         let paths = Self {
             mod_settings_path: config_dir.join("mod_settings.json"),
@@ -64,8 +68,10 @@ impl GamePaths {
             mod_imports_dir,
             config_dir,
             bundled_assets_dir,
+            bundled_mods_dir,
         };
 
+        seed_bundled_mods(&paths)?;
         GAME_PATHS.set(paths).map_err(|_| {
             io::Error::new(
                 io::ErrorKind::AlreadyExists,
@@ -129,26 +135,51 @@ fn resolve_internal_root() -> io::Result<PathBuf> {
 }
 
 #[cfg(not(target_os = "android"))]
-fn discover_bundled_assets_dir() -> PathBuf {
+fn packaged_data_directories() -> (PathBuf, PathBuf) {
     let executable_dir = std::env::current_exe()
         .ok()
         .and_then(|path| path.parent().map(Path::to_path_buf));
 
-    if let Some(directory) = executable_dir {
-        let adjacent = directory.join("data").join("assets");
-        if adjacent.is_dir() {
-            return adjacent;
-        }
-        if let Some(parent) = directory.parent() {
-            let packaged = parent.join("data").join("assets");
-            if packaged.is_dir() {
-                return packaged;
-            }
-        }
-        return adjacent;
+    let packaged = executable_dir
+        .map(|directory| directory.join("data"))
+        .unwrap_or_default();
+    let packaged_assets = packaged.join("assets");
+    let packaged_mods = packaged.join("mods");
+
+    if packaged_assets.is_dir() || packaged_mods.is_dir() {
+        return (packaged_assets, packaged_mods);
     }
 
-    PathBuf::from("data").join("assets")
+    let source_data = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("data");
+    (source_data.join("assets"), source_data.join("mods"))
+}
+
+fn seed_bundled_mods(paths: &GamePaths) -> io::Result<()> {
+    let marker = paths.config_dir.join("bundled_mods_seeded");
+    if marker.exists() || !paths.bundled_mods_dir.is_dir() {
+        return Ok(());
+    }
+    copy_directory_without_overwriting(&paths.bundled_mods_dir, &paths.mods_dir)?;
+    fs::write(marker, b"1\n")
+}
+
+fn copy_directory_without_overwriting(source: &Path, destination: &Path) -> io::Result<()> {
+    fs::create_dir_all(destination)?;
+    for entry in fs::read_dir(source)? {
+        let entry = entry?;
+        let source_path = entry.path();
+        let metadata = fs::symlink_metadata(&source_path)?;
+        if metadata.file_type().is_symlink() {
+            continue;
+        }
+        let target = destination.join(entry.file_name());
+        if metadata.is_dir() {
+            copy_directory_without_overwriting(&source_path, &target)?;
+        } else if metadata.is_file() && !target.exists() {
+            fs::copy(&source_path, &target)?;
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -161,5 +192,22 @@ mod tests {
         assert_eq!(root.join(SAVES_DIRECTORY_NAME), root.join("saves"));
         assert_eq!(root.join(MODS_DIRECTORY_NAME), root.join("mods"));
         assert_eq!(root.join(IMPORTS_DIRECTORY_NAME), root.join("imports"));
+    }
+
+    #[test]
+    fn bundled_mod_seeding_does_not_overwrite_user_files() {
+        let root = std::env::temp_dir().join(format!("ashen_seed_test_{}", std::process::id()));
+        let source = root.join("source");
+        let target = root.join("target");
+        fs::create_dir_all(&source.join("example")).unwrap();
+        fs::create_dir_all(&target.join("example")).unwrap();
+        fs::write(source.join("example/manifest.json"), "bundled").unwrap();
+        fs::write(target.join("example/manifest.json"), "user").unwrap();
+        copy_directory_without_overwriting(&source, &target).unwrap();
+        assert_eq!(
+            fs::read_to_string(target.join("example/manifest.json")).unwrap(),
+            "user"
+        );
+        fs::remove_dir_all(root).unwrap();
     }
 }
