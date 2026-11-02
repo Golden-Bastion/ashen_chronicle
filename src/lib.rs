@@ -36,8 +36,9 @@ pub mod spatial;
 
 pub fn run() {
     if let Err(error) = game_paths::GamePaths::initialize() {
-        panic!("failed to initialize The Ashen Chronicle game root: {error}");
+        panic!("failed to initialize The Ashen Chronicle game storage: {error}");
     }
+    mod_manager::initialize_active_mods();
     bevy_app::run();
 }
 
