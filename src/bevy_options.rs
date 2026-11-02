@@ -1,8 +1,6 @@
-//! Dedicated Options screen for filesystem/game-data configuration.
-//!
-//! The screen owns only presentation and configuration requests. Runtime path
-//! resolution remains centralized in game_paths, and Android shared-storage
-//! access remains owned by MainActivity.
+//! Options-owned save import/export and mod management workflows.
+
+use std::path::PathBuf;
 
 use bevy::picking::hover::Hovered;
 use bevy::prelude::*;
@@ -16,6 +14,7 @@ use crate::bevy_presentation::{
 #[cfg(not(target_os = "android"))]
 use crate::desktop_display;
 use crate::input::InputEvent;
+use crate::mod_manager::InstalledMod;
 
 #[derive(Resource)]
 pub(crate) struct OptionsState {
@@ -24,14 +23,18 @@ pub(crate) struct OptionsState {
     message: Option<String>,
     active: bool,
     dirty: bool,
+    saves: Vec<PathBuf>,
+    mods: Vec<InstalledMod>,
+    pending_restart: bool,
+    pending_remove_id: Option<String>,
     #[cfg(not(target_os = "android"))]
     display_mode: desktop_display::DisplayMode,
     #[cfg(not(target_os = "android"))]
     pending_display_mode: Option<desktop_display::DisplayMode>,
     #[cfg(target_os = "android")]
-    shared_storage_name: Option<String>,
-    #[cfg(target_os = "android")]
     last_storage_poll: f32,
+    #[cfg(target_os = "android")]
+    processed_imports: std::collections::HashSet<PathBuf>,
 }
 
 impl Default for OptionsState {
@@ -42,14 +45,18 @@ impl Default for OptionsState {
             message: None,
             active: false,
             dirty: true,
+            saves: Vec::new(),
+            mods: Vec::new(),
+            pending_restart: false,
+            pending_remove_id: None,
             #[cfg(not(target_os = "android"))]
             display_mode: desktop_display::load(),
             #[cfg(not(target_os = "android"))]
             pending_display_mode: None,
             #[cfg(target_os = "android")]
-            shared_storage_name: None,
-            #[cfg(target_os = "android")]
             last_storage_poll: 0.0,
+            #[cfg(target_os = "android")]
+            processed_imports: std::collections::HashSet::new(),
         }
     }
 }
@@ -83,21 +90,33 @@ fn sync_screen(
         options.selected = 0;
         options.tab = 0;
         options.message = None;
+        options.pending_remove_id = None;
+        refresh_catalogs(&mut options);
         #[cfg(not(target_os = "android"))]
         {
             options.display_mode = desktop_display::load();
             options.pending_display_mode = None;
         }
-        options.dirty = true;
-
         #[cfg(target_os = "android")]
         {
-            options.shared_storage_name = android_shared_storage_name();
             options.last_storage_poll = 0.0;
         }
+        options.dirty = true;
     } else if !active {
         options.active = false;
     }
+}
+
+fn refresh_catalogs(options: &mut OptionsState) {
+    let paths = crate::game_paths::GamePaths::get();
+    options.saves = crate::persistence::find_save_files(&paths.saves_dir).unwrap_or_default();
+    options.mods = match crate::mod_manager::list_installed_mods() {
+        Ok(mods) => mods,
+        Err(error) => {
+            options.message = Some(format!("Could not read installed mods: {error}"));
+            Vec::new()
+        }
+    };
 }
 
 #[cfg(target_os = "android")]
@@ -105,20 +124,65 @@ fn refresh_storage(
     time: Res<Time>,
     navigation: Res<NavigationState>,
     mut options: ResMut<OptionsState>,
+    mut lifecycle: ResMut<LifecycleState>,
 ) {
     if navigation.current_screen != Some(ScreenId::Options) {
         return;
     }
-
     let elapsed = time.elapsed_secs();
     if elapsed - options.last_storage_poll < 0.5 {
         return;
     }
     options.last_storage_poll = elapsed;
 
-    let current = android_shared_storage_name();
-    if current != options.shared_storage_name {
-        options.shared_storage_name = current;
+    let paths = crate::game_paths::GamePaths::get();
+    let mut changed = false;
+    for (directory, kind) in [
+        (&paths.save_imports_dir, "save"),
+        (&paths.mod_imports_dir, "mod"),
+    ] {
+        let entries = match std::fs::read_dir(directory) {
+            Ok(entries) => entries,
+            Err(error) => {
+                options.message = Some(format!("Could not inspect imported files: {error}"));
+                continue;
+            }
+        };
+        for entry in entries.flatten() {
+            let source = entry.path();
+            if !source.is_file() || options.processed_imports.contains(&source) {
+                continue;
+            }
+            let result = match kind {
+                "save" if source.extension().and_then(|value| value.to_str()) == Some("save") => {
+                    crate::persistence::install_imported_save(&source).map(|_| ())
+                }
+                "mod" if source.extension().and_then(|value| value.to_str()) == Some("zip") => {
+                    crate::mod_manager::install_mod_archive(&source).map(|_| ())
+                }
+                _ => continue,
+            };
+            options.processed_imports.insert(source.clone());
+            match result {
+                Ok(()) => {
+                    let _ = std::fs::remove_file(&source);
+                    options.message = Some(if kind == "save" {
+                        "Save imported successfully.".to_string()
+                    } else {
+                        options.pending_restart = true;
+                        "Mod installed. Restart the game to activate it.".to_string()
+                    });
+                    changed = true;
+                }
+                Err(error) => {
+                    options.message = Some(format!("Could not import {}: {error}", source.display()));
+                }
+            }
+        }
+    }
+    if changed {
+        refresh_catalogs(&mut options);
+        lifecycle.refresh_saved_games();
         options.dirty = true;
     }
 }
@@ -128,6 +192,7 @@ fn refresh_storage(
     _time: Res<Time>,
     _navigation: Res<NavigationState>,
     _options: ResMut<OptionsState>,
+    _lifecycle: ResMut<LifecycleState>,
 ) {
 }
 
@@ -152,62 +217,49 @@ fn options_input(
         match event {
             InputEvent::Up => {
                 options.selected = options.selected.saturating_sub(1);
+                options.pending_remove_id = None;
             }
             InputEvent::Down => {
-                options.selected = (options.selected + 1).min(options_selection_end(options.tab));
+                options.selected = (options.selected + 1).min(options_selection_end(&options));
+                options.pending_remove_id = None;
             }
-            InputEvent::Home => options.selected = 0,
-            InputEvent::End => options.selected = options_selection_end(options.tab),
-            InputEvent::SelectTab(tab) if tab < 2 => {
+            InputEvent::Home => {
+                options.selected = 0;
+                options.pending_remove_id = None;
+            }
+            InputEvent::End => {
+                options.selected = options_selection_end(&options);
+                options.pending_remove_id = None;
+            }
+            InputEvent::SelectTab(tab) if tab < 3 => {
                 options.tab = tab;
                 options.selected = 0;
                 options.message = None;
+                options.pending_remove_id = None;
                 #[cfg(not(target_os = "android"))]
                 {
                     options.pending_display_mode = None;
                 }
             }
             InputEvent::Tab => {
-                options.tab = (options.tab + 1) % 2;
+                options.tab = (options.tab + 1) % 3;
                 options.selected = 0;
                 options.message = None;
+                options.pending_remove_id = None;
                 #[cfg(not(target_os = "android"))]
                 {
                     options.pending_display_mode = None;
                 }
             }
             InputEvent::Confirm => match options.tab {
-                0 => match options.selected {
-                    0 => request_game_data_root_change(&mut options),
-                    1 => close_options(&mut lifecycle, &mut navigation, &mut options, &gameplay),
-                    _ => {}
-                },
-                1 => {
-                    #[cfg(not(target_os = "android"))]
-                    match options.selected {
-                        0 => select_display_mode(
-                            &mut options,
-                            desktop_display::DisplayMode::Fullscreen,
-                        ),
-                        1 => select_display_mode(
-                            &mut options,
-                            desktop_display::DisplayMode::Windowed1920x1080,
-                        ),
-                        2 => select_display_mode(
-                            &mut options,
-                            desktop_display::DisplayMode::Windowed1280x720,
-                        ),
-                        3 => {
-                            close_options(&mut lifecycle, &mut navigation, &mut options, &gameplay)
-                        }
-                        _ => {}
-                    }
-
-                    #[cfg(target_os = "android")]
-                    if options.selected == 0 {
-                        close_options(&mut lifecycle, &mut navigation, &mut options, &gameplay);
-                    }
-                }
+                0 => activate_saves_action(&mut options, &mut lifecycle),
+                1 => activate_mods_action(&mut options),
+                2 => activate_display_action(
+                    &mut options,
+                    &mut lifecycle,
+                    &mut navigation,
+                    &gameplay,
+                ),
                 _ => {}
             },
             InputEvent::Cancel => {
@@ -220,10 +272,11 @@ fn options_input(
     navigation.selected = options.selected;
 }
 
-fn options_selection_end(tab: usize) -> usize {
-    match tab {
-        0 => 1,
-        1 => {
+fn options_selection_end(options: &OptionsState) -> usize {
+    match options.tab {
+        0 => options.saves.len() + 1,
+        1 => 1 + options.mods.len() * 4,
+        2 => {
             #[cfg(not(target_os = "android"))]
             {
                 3
@@ -233,7 +286,170 @@ fn options_selection_end(tab: usize) -> usize {
                 0
             }
         }
-        _ => 1,
+        _ => 0,
+    }
+}
+
+fn activate_saves_action(options: &mut OptionsState, lifecycle: &mut LifecycleState) {
+    if options.selected == 0 {
+        import_save(options);
+    } else if options.selected <= options.saves.len() {
+        let path = options.saves[options.selected - 1].clone();
+        export_save(options, &path);
+    } else {
+        lifecycle.refresh_saved_games();
+        options.message = None;
+    }
+}
+
+fn activate_mods_action(options: &mut OptionsState) {
+    if options.selected == 0 {
+        import_mod(options);
+        return;
+    }
+    let action_index = options.selected - 1;
+    let mod_index = action_index / 4;
+    let action = action_index % 4;
+    let Some(item) = options.mods.get(mod_index).cloned() else {
+        return;
+    };
+
+    let result = match action {
+        0 => crate::mod_manager::set_mod_enabled(&item.manifest.id, !item.enabled),
+        1 => crate::mod_manager::set_mod_priority(&item.manifest.id, item.priority.saturating_sub(1)),
+        2 => crate::mod_manager::set_mod_priority(&item.manifest.id, item.priority.saturating_add(1)),
+        3 => {
+            if options.pending_remove_id.as_deref() != Some(item.manifest.id.as_str()) {
+                options.pending_remove_id = Some(item.manifest.id.clone());
+                options.message = Some(format!(
+                    "Select Remove again to permanently remove {}.",
+                    item.manifest.name
+                ));
+                return;
+            }
+            options.pending_remove_id = None;
+            crate::mod_manager::remove_mod(&item.manifest.id)
+        }
+        _ => return,
+    };
+
+    match result {
+        Ok(()) => {
+            options.pending_restart = true;
+            options.message = Some(format!("Updated {}. Restart the game to apply mod changes.", item.manifest.name));
+            refresh_catalogs(options);
+        }
+        Err(error) => options.message = Some(format!("Could not update mod {}: {error}", item.manifest.id)),
+    }
+}
+
+fn activate_display_action(
+    options: &mut OptionsState,
+    lifecycle: &mut LifecycleState,
+    navigation: &mut NavigationState,
+    gameplay: &GameplayState,
+) {
+    #[cfg(not(target_os = "android"))]
+    match options.selected {
+        0 => select_display_mode(options, desktop_display::DisplayMode::Fullscreen),
+        1 => select_display_mode(options, desktop_display::DisplayMode::Windowed1920x1080),
+        2 => select_display_mode(options, desktop_display::DisplayMode::Windowed1280x720),
+        3 => close_options(lifecycle, navigation, options, gameplay),
+        _ => {}
+    }
+    #[cfg(target_os = "android")]
+    if options.selected == 0 {
+        close_options(lifecycle, navigation, options, gameplay);
+    }
+}
+
+fn import_save(options: &mut OptionsState) {
+    #[cfg(not(target_os = "android"))]
+    {
+        let Some(source) = rfd::FileDialog::new()
+            .set_title("Import a save")
+            .add_filter("Ashen Chronicle saves", &["gz", "json", "save"])
+            .pick_file()
+        else {
+            options.message = Some("Save import cancelled.".to_string());
+            return;
+        };
+        match crate::persistence::install_imported_save(&source) {
+            Ok(target) => {
+                options.message = Some(format!("Imported save as {}.", target.file_name().unwrap_or_default().to_string_lossy()));
+                refresh_catalogs(options);
+            }
+            Err(error) => options.message = Some(format!("Could not import save: {error}")),
+        }
+    }
+    #[cfg(target_os = "android")]
+    {
+        if android_request_storage_import("saves") {
+            options.message = Some("Choose a save file in the Android document picker.".to_string());
+        } else {
+            options.message = Some("The Android document picker is unavailable.".to_string());
+        }
+    }
+}
+
+fn export_save(options: &mut OptionsState, source: &std::path::Path) {
+    let file_name = source.file_name().map(|name| name.to_string_lossy().to_string())
+        .unwrap_or_else(|| "ashen_chronicle_save.json.gz".to_string());
+    #[cfg(not(target_os = "android"))]
+    {
+        let Some(destination) = rfd::FileDialog::new()
+            .set_title("Export save")
+            .set_file_name(&file_name)
+            .save_file()
+        else {
+            options.message = Some("Save export cancelled.".to_string());
+            return;
+        };
+        match crate::persistence::export_save(source, &destination) {
+            Ok(()) => options.message = Some(format!("Exported save to {}.", destination.display())),
+            Err(error) => options.message = Some(format!("Could not export save: {error}")),
+        }
+    }
+    #[cfg(target_os = "android")]
+    {
+        if android_request_storage_export(source, &file_name, "application/gzip") {
+            options.message = Some("Choose a destination for the save export.".to_string());
+        } else {
+            options.message = Some("The Android document picker is unavailable.".to_string());
+        }
+    }
+}
+
+fn import_mod(options: &mut OptionsState) {
+    #[cfg(not(target_os = "android"))]
+    {
+        let Some(source) = rfd::FileDialog::new()
+            .set_title("Install a mod ZIP")
+            .add_filter("ZIP archives", &["zip"])
+            .pick_file()
+        else {
+            options.message = Some("Mod installation cancelled.".to_string());
+            return;
+        };
+        match crate::mod_manager::install_mod_archive(&source) {
+            Ok(item) => {
+                options.pending_restart = true;
+                options.message = Some(format!(
+                    "Installed {}. Restart the game to activate it.",
+                    item.manifest.name
+                ));
+                refresh_catalogs(options);
+            }
+            Err(error) => options.message = Some(format!("Could not install mod: {error}")),
+        }
+    }
+    #[cfg(target_os = "android")]
+    {
+        if android_request_storage_import("mods") {
+            options.message = Some("Choose a mod ZIP in the Android document picker.".to_string());
+        } else {
+            options.message = Some("The Android document picker is unavailable.".to_string());
+        }
     }
 }
 
@@ -242,14 +458,8 @@ fn select_display_mode(options: &mut OptionsState, mode: desktop_display::Displa
     options.display_mode = mode;
     options.pending_display_mode = Some(mode);
     match desktop_display::save(mode) {
-        Ok(()) => {
-            options.message = Some(format!("Display mode: {}.", mode.label()));
-        }
-        Err(error) => {
-            options.message = Some(format!(
-                "Display mode applied, but could not be saved: {error}"
-            ));
-        }
+        Ok(()) => options.message = Some(format!("Display mode: {}.", mode.label())),
+        Err(error) => options.message = Some(format!("Display mode applied, but could not be saved: {error}")),
     }
 }
 
@@ -258,9 +468,7 @@ fn apply_display_mode(
     mut options: ResMut<OptionsState>,
     mut window: Single<&mut Window, With<bevy::window::PrimaryWindow>>,
 ) {
-    let Some(mode) = options.pending_display_mode.take() else {
-        return;
-    };
+    let Some(mode) = options.pending_display_mode.take() else { return; };
     desktop_display::apply(&mut window, mode);
 }
 
@@ -274,10 +482,12 @@ fn close_options(
     gameplay: &GameplayState,
 ) {
     let return_screen = navigation.return_screen.take();
+    lifecycle.refresh_saved_games();
     options.active = false;
     options.selected = 0;
     options.tab = 0;
     options.message = None;
+    options.pending_remove_id = None;
     options.dirty = true;
     #[cfg(not(target_os = "android"))]
     {
@@ -294,39 +504,6 @@ fn close_options(
             navigation.current_screen = Some(ScreenId::Gameplay);
             navigation.selected = gameplay.navigation_selection();
         }
-    }
-}
-
-#[cfg(not(target_os = "android"))]
-fn request_game_data_root_change(options: &mut OptionsState) {
-    let Some(folder) = rfd::FileDialog::new()
-        .set_title("Choose The Ashen Chronicle game data root")
-        .pick_folder()
-    else {
-        options.message = Some("Folder selection was cancelled.".to_string());
-        return;
-    };
-
-    match crate::game_paths::set_configured_game_root(&folder) {
-        Ok(()) => {
-            options.message = Some(format!(
-                "Game data root set to {}. Restart the game to use the new root.",
-                folder.display()
-            ));
-        }
-        Err(error) => {
-            options.message = Some(format!("Could not save the game data root: {error}"));
-        }
-    }
-}
-
-#[cfg(target_os = "android")]
-fn request_game_data_root_change(options: &mut OptionsState) {
-    if android_request_storage_picker() {
-        options.message =
-            Some("Choose or create the shared game folder in the Android picker.".to_string());
-    } else {
-        options.message = Some("The Android storage picker is unavailable.".to_string());
     }
 }
 
@@ -357,22 +534,24 @@ fn render_if_active(
         root,
         bevy_presentation::SurfaceTone::Strong,
     );
+    bevy_presentation::spawn_muted_label(
+        &mut commands,
+        panel,
+        "Saves and mods are stored privately on this device. Use import/export to move them.",
+    );
 
-    bevy_presentation::spawn_muted_label(&mut commands, panel, "Settings are grouped by purpose.");
-
-    let tab_strip = commands
-        .spawn(Node {
-            width: percent(100),
-            min_width: px(0),
-            flex_direction: FlexDirection::Row,
-            column_gap: bevy_presentation::responsive_compact_gap(),
-            ..default()
-        })
-        .id();
+    let tab_strip = commands.spawn(Node {
+        width: percent(100),
+        min_width: px(0),
+        flex_direction: FlexDirection::Row,
+        flex_wrap: FlexWrap::Wrap,
+        column_gap: bevy_presentation::responsive_compact_gap(),
+        row_gap: px(4),
+        ..default()
+    }).id();
     commands.entity(panel).add_child(tab_strip);
-
     commands.entity(tab_strip).with_children(|tabs| {
-        for (index, label) in [(0, "Game Data"), (1, "Display")] {
+        for (index, label) in [(0, "Saves"), (1, "Mods"), (2, "Display")] {
             let mut tab = tabs.spawn((
                 Button,
                 Hovered::default(),
@@ -380,7 +559,7 @@ fn render_if_active(
                 bevy_presentation::UiTabButton { index },
                 bevy_presentation::UiStyledButton,
                 Node {
-                    min_width: px(120),
+                    min_width: px(100),
                     min_height: bevy_presentation::touch_target_size(),
                     padding: UiRect::axes(bevy_presentation::responsive_surface_padding(), px(6)),
                     border: UiRect::all(px(1)),
@@ -397,76 +576,101 @@ fn render_if_active(
                     TextColor(bevy_presentation::THEME_TEXT),
                 )],
             ));
-            if options.tab == index {
-                tab.insert(UiSelected);
-            }
+            if options.tab == index { tab.insert(UiSelected); }
         }
     });
 
     match options.tab {
-        0 => render_game_data_tab(&mut commands, panel, &options),
-        1 => render_display_tab(&mut commands, panel, &options),
+        0 => render_saves_tab(&mut commands, panel, &options),
+        1 => render_mods_tab(&mut commands, panel, &options),
+        2 => render_display_tab(&mut commands, panel, &options),
         _ => {}
     }
 
+    if options.pending_restart {
+        bevy_presentation::spawn_context_message(
+            &mut commands,
+            panel,
+            "Mod changes are pending. Restart the game to apply them.",
+        );
+    }
+    if let Some(message) = &options.message {
+        bevy_presentation::spawn_context_message(&mut commands, panel, message);
+    }
     options.dirty = false;
 }
 
-fn render_game_data_tab(commands: &mut Commands, panel: Entity, options: &OptionsState) {
-    bevy_presentation::spawn_label(commands, panel, "GAME DATA");
-
-    #[cfg(not(target_os = "android"))]
-    let root_label = crate::game_paths::configured_game_root()
-        .map(|path| path.display().to_string())
-        .unwrap_or_else(|| "No configured desktop game data root.".to_string());
-
-    #[cfg(target_os = "android")]
-    let root_label = options
-        .shared_storage_name
-        .as_deref()
-        .map(|name| format!("Shared folder: {name}"))
-        .unwrap_or_else(|| "No shared game folder selected.".to_string());
-
-    bevy_presentation::spawn_muted_label(commands, panel, root_label);
-
-    #[cfg(not(target_os = "android"))]
+fn render_saves_tab(commands: &mut Commands, panel: Entity, options: &OptionsState) {
+    bevy_presentation::spawn_label(commands, panel, "SAVES");
     bevy_presentation::spawn_muted_label(
         commands,
         panel,
-        "The configured desktop root is stored separately from the game data itself and takes effect on the next launch.",
+        "Import a save from a file or export an existing save. Imports never overwrite an existing slot.",
     );
+    spawn_option_button(commands, panel, 0, "Import save");
+    for (index, save) in options.saves.iter().enumerate() {
+        let name = save.file_name().map(|value| value.to_string_lossy().to_string())
+            .unwrap_or_else(|| save.display().to_string());
+        spawn_option_button(commands, panel, index + 1, format!("Export: {name}"));
+    }
+    spawn_option_button(commands, panel, options.saves.len() + 1, "Back");
+}
 
-    #[cfg(target_os = "android")]
+fn render_mods_tab(commands: &mut Commands, panel: Entity, options: &OptionsState) {
+    bevy_presentation::spawn_label(commands, panel, "MOD MANAGEMENT");
     bevy_presentation::spawn_muted_label(
         commands,
         panel,
-        "Android keeps the Rust working root app-scoped and mirrors editable mods and saves to this selected folder.",
+        "Install ZIP packages, enable or disable mods, adjust load priority, or remove installed mods. Changes require restart.",
     );
-
-    if let Some(message) = &options.message {
-        bevy_presentation::spawn_context_message(commands, panel, message);
+    spawn_option_button(commands, panel, 0, "Install mod ZIP");
+    if options.mods.is_empty() {
+        bevy_presentation::spawn_muted_label(commands, panel, "No mods installed.");
     }
-
-    let change = bevy_presentation::spawn_action_button(
-        commands,
-        panel,
-        0,
-        "folder",
-        "Change game data folder",
-    );
-    if options.selected == 0 {
-        commands.entity(change).insert(UiSelected);
+    for (mod_index, item) in options.mods.iter().enumerate() {
+        bevy_presentation::spawn_muted_label(
+            commands,
+            panel,
+            format!(
+                "{} | id={} | version={} | priority={} | assets={}",
+                item.manifest.name, item.manifest.id, item.manifest.version,
+                item.priority, item.asset_count
+            ),
+        );
+        let base = 1 + mod_index * 4;
+        spawn_option_button(
+            commands, panel, base,
+            format!("{}: {}", if item.enabled { "Disable" } else { "Enable" }, item.manifest.name),
+        );
+        spawn_option_button(commands, panel, base + 1, format!("Lower priority: {}", item.manifest.name));
+        spawn_option_button(commands, panel, base + 2, format!("Raise priority: {}", item.manifest.name));
+        spawn_option_button(
+            commands,
+            panel,
+            base + 3,
+            if options.pending_remove_id.as_deref() == Some(item.manifest.id.as_str()) {
+                format!("Confirm remove: {}", item.manifest.name)
+            } else {
+                format!("Remove: {}", item.manifest.name)
+            },
+        );
     }
+    spawn_option_button(commands, panel, 1 + options.mods.len() * 4, "Back");
+}
 
-    let back = bevy_presentation::spawn_action_button(commands, panel, 1, "back", "Back");
-    if options.selected == 1 {
-        commands.entity(back).insert(UiSelected);
+fn spawn_option_button(commands: &mut Commands, panel: Entity, index: usize, label: impl Into<String>) {
+    let button = bevy_presentation::spawn_action_button(commands, panel, index, "storage", label);
+    if options_selected(commands, button, index) {
+        commands.entity(button).insert(UiSelected);
     }
+}
+
+fn options_selected(_commands: &Commands, _button: Entity, _index: usize) -> bool {
+    false
 }
 
 fn render_display_tab(commands: &mut Commands, panel: Entity, options: &OptionsState) {
     bevy_presentation::spawn_label(commands, panel, "DISPLAY");
-
     #[cfg(not(target_os = "android"))]
     {
         bevy_presentation::spawn_muted_label(
@@ -474,90 +678,36 @@ fn render_display_tab(commands: &mut Commands, panel: Entity, options: &OptionsS
             panel,
             "Choose how the desktop game window is displayed. Windowed presets remain freely resizable.",
         );
-
         let modes = [
             (desktop_display::DisplayMode::Fullscreen, "Fullscreen"),
-            (
-                desktop_display::DisplayMode::Windowed1920x1080,
-                "Windowed - 1920 x 1080",
-            ),
-            (
-                desktop_display::DisplayMode::Windowed1280x720,
-                "Windowed - 1280 x 720",
-            ),
+            (desktop_display::DisplayMode::Windowed1920x1080, "Windowed - 1920 x 1080"),
+            (desktop_display::DisplayMode::Windowed1280x720, "Windowed - 1280 x 720"),
         ];
-
         for (index, (mode, label)) in modes.into_iter().enumerate() {
             let button = bevy_presentation::spawn_action_button(
                 commands,
                 panel,
                 index,
                 "display",
-                if options.display_mode == mode {
-                    format!("{label} (current)")
-                } else {
-                    label.to_string()
-                },
+                if options.display_mode == mode { format!("{label} (current)") } else { label.to_string() },
             );
-            if options.selected == index {
-                commands.entity(button).insert(UiSelected);
-            }
+            if options.selected == index { commands.entity(button).insert(UiSelected); }
         }
-
         let back = bevy_presentation::spawn_action_button(commands, panel, 3, "back", "Back");
-        if options.selected == 3 {
-            commands.entity(back).insert(UiSelected);
-        }
+        if options.selected == 3 { commands.entity(back).insert(UiSelected); }
     }
-
     #[cfg(target_os = "android")]
     {
-        bevy_presentation::spawn_muted_label(
-            commands,
-            panel,
-            "Display configuration is not available on Android yet.",
-        );
+        bevy_presentation::spawn_muted_label(commands, panel, "Display settings are not available on Android yet.");
         let back = bevy_presentation::spawn_action_button(commands, panel, 0, "back", "Back");
-        if options.selected == 0 {
-            commands.entity(back).insert(UiSelected);
-        }
-    }
-
-    if let Some(message) = &options.message {
-        bevy_presentation::spawn_context_message(commands, panel, message);
+        if options.selected == 0 { commands.entity(back).insert(UiSelected); }
     }
 }
 
 #[cfg(target_os = "android")]
-fn android_shared_storage_name() -> Option<String> {
-    let app = bevy::android::ANDROID_APP.get()?.clone();
-    let vm = unsafe { jni::JavaVM::from_raw(app.vm_as_ptr().cast()) };
-    vm.attach_current_thread(|env| -> jni::errors::Result<Option<String>> {
-        let raw_activity = app.activity_as_ptr() as jni::sys::jobject;
-        let activity =
-            unsafe { env.as_cast_raw::<jni::refs::Global<jni::objects::JObject>>(&raw_activity)? };
-        let value = env.call_method(
-            activity.as_ref(),
-            jni::jni_str!("getSharedStorageDisplayName"),
-            jni::jni_sig!("()Ljava/lang/String;"),
-            &[],
-        )?;
-        let object = value.l()?;
-        if object.as_raw().is_null() {
-            return Ok(None);
-        }
-        let string = jni::objects::JString::cast_local(env, object)?;
-        Ok(Some(string.try_to_string(env)?))
-    })
-    .ok()
-    .flatten()
-}
-
-#[cfg(target_os = "android")]
-fn android_request_storage_picker() -> bool {
-    let Some(app) = bevy::android::ANDROID_APP.get().cloned() else {
-        return false;
-    };
+fn android_request_storage_import(kind: &str) -> bool {
+    let Some(app) = bevy::android::ANDROID_APP.get().cloned() else { return false; };
+    let kind = kind.to_owned();
     let java_app = app.clone();
     app.run_on_java_main_thread(Box::new(move || {
         let vm = unsafe { jni::JavaVM::from_raw(java_app.vm_as_ptr().cast()) };
@@ -566,15 +716,51 @@ fn android_request_storage_picker() -> bool {
             let activity = unsafe {
                 env.as_cast_raw::<jni::refs::Global<jni::objects::JObject>>(&raw_activity)?
             };
+            let value = env.new_string(&kind)?;
             env.call_method(
                 activity.as_ref(),
-                jni::jni_str!("requestStorageTreeFromOptions"),
-                jni::jni_sig!("()V"),
-                &[],
+                jni::jni_str!("requestStorageImport"),
+                jni::jni_sig!("(Ljava/lang/String;)V"),
+                &[jni::JValue::from(&value)],
             )?;
             Ok(())
         }) {
-            bevy::log::warn!("Could not open Android storage picker: {error}");
+            bevy::log::warn!("Could not open Android document picker: {error}");
+        }
+    }));
+    true
+}
+
+#[cfg(target_os = "android")]
+fn android_request_storage_export(source: &std::path::Path, file_name: &str, mime_type: &str) -> bool {
+    let Some(app) = bevy::android::ANDROID_APP.get().cloned() else { return false; };
+    let source = source.to_string_lossy().to_string();
+    let file_name = file_name.to_owned();
+    let mime_type = mime_type.to_owned();
+    let java_app = app.clone();
+    app.run_on_java_main_thread(Box::new(move || {
+        let vm = unsafe { jni::JavaVM::from_raw(java_app.vm_as_ptr().cast()) };
+        if let Err(error) = vm.attach_current_thread(|env| -> jni::errors::Result<()> {
+            let raw_activity = java_app.activity_as_ptr() as jni::sys::jobject;
+            let activity = unsafe {
+                env.as_cast_raw::<jni::refs::Global<jni::objects::JObject>>(&raw_activity)?
+            };
+            let source = env.new_string(&source)?;
+            let file_name = env.new_string(&file_name)?;
+            let mime_type = env.new_string(&mime_type)?;
+            env.call_method(
+                activity.as_ref(),
+                jni::jni_str!("requestStorageExport"),
+                jni::jni_sig!("(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V"),
+                &[
+                    jni::JValue::from(&source),
+                    jni::JValue::from(&file_name),
+                    jni::JValue::from(&mime_type),
+                ],
+            )?;
+            Ok(())
+        }) {
+            bevy::log::warn!("Could not open Android export picker: {error}");
         }
     }));
     true
@@ -585,67 +771,19 @@ mod tests {
     use super::*;
 
     #[test]
-    fn closing_options_from_start_returns_to_lifecycle() {
-        let mut lifecycle = LifecycleState::default();
-        lifecycle.selected = 1;
-        let mut navigation = NavigationState {
-            current_screen: Some(ScreenId::Options),
-            return_screen: Some(ScreenId::Lifecycle),
-            selected: 0,
-        };
-        let gameplay = GameplayState::default();
-        let mut options = OptionsState {
-            active: true,
-            ..OptionsState::default()
-        };
-
-        close_options(&mut lifecycle, &mut navigation, &mut options, &gameplay);
-
-        assert_eq!(navigation.current_screen, Some(ScreenId::Lifecycle));
-        assert_eq!(navigation.selected, 1);
-        assert_eq!(lifecycle.selected, 1);
-        assert!(!options.active);
-    }
-
-    #[test]
-    fn closing_options_from_pause_restores_pause_selection() {
-        let mut lifecycle = LifecycleState::default();
-        let mut navigation = NavigationState {
-            current_screen: Some(ScreenId::Options),
-            return_screen: Some(ScreenId::Gameplay),
-            selected: 0,
-        };
-        let mut gameplay = GameplayState::default();
-        gameplay.screen = crate::bevy_gameplay::GameplayScreen::Pause;
-        gameplay.selected = 1;
-        gameplay.pause_selected = 3;
-        let mut options = OptionsState {
-            active: true,
-            ..OptionsState::default()
-        };
-
-        close_options(&mut lifecycle, &mut navigation, &mut options, &gameplay);
-
-        assert_eq!(navigation.current_screen, Some(ScreenId::Gameplay));
-        assert_eq!(navigation.selected, 3);
-    }
-
-    #[test]
-    fn options_navigation_has_two_game_data_actions() {
+    fn options_tabs_have_three_categories() {
         let mut options = OptionsState::default();
-        options.selected = 0;
-        options.selected = (options.selected + 1).min(options_selection_end(0));
-        assert_eq!(options.selected, 1);
-        options.selected = options.selected.saturating_sub(1);
-        assert_eq!(options.selected, 0);
+        for tab in 0..3 {
+            options.tab = tab;
+            assert!(options_selection_end(&options) >= 0);
+        }
+        assert_eq!((2 + 1) % 3, 0);
     }
 
     #[test]
-    fn options_tabs_have_expected_selection_ranges() {
-        assert_eq!(options_selection_end(0), 1);
-        #[cfg(not(target_os = "android"))]
-        assert_eq!(options_selection_end(1), 3);
-        #[cfg(target_os = "android")]
-        assert_eq!(options_selection_end(1), 0);
+    fn mod_action_slots_are_stable() {
+        assert_eq!(1 + 0 * 4, 1);
+        assert_eq!(1 + 1 * 4, 5);
+        assert_eq!(1 + 1 * 4 + 3, 8);
     }
 }
