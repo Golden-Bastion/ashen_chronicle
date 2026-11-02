@@ -143,15 +143,21 @@ fn packaged_data_directories() -> (PathBuf, PathBuf) {
     let packaged = executable_dir
         .map(|directory| directory.join("data"))
         .unwrap_or_default();
+    let source_data = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("data");
     let packaged_assets = packaged.join("assets");
     let packaged_mods = packaged.join("mods");
 
-    if packaged_assets.is_dir() || packaged_mods.is_dir() {
-        return (packaged_assets, packaged_mods);
-    }
-
-    let source_data = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("data");
-    (source_data.join("assets"), source_data.join("mods"))
+    let assets = if packaged_assets.is_dir() {
+        packaged_assets
+    } else {
+        source_data.join("assets")
+    };
+    let mods = if packaged_mods.is_dir() {
+        packaged_mods
+    } else {
+        source_data.join("mods")
+    };
+    (assets, mods)
 }
 
 fn seed_bundled_mods(paths: &GamePaths) -> io::Result<()> {
