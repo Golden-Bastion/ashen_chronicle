@@ -182,7 +182,8 @@ fn refresh_storage(
                     changed = true;
                 }
                 Err(error) => {
-                    options.message = Some(format!("Could not import {}: {error}", source.display()));
+                    options.message =
+                        Some(format!("Could not import {}: {error}", source.display()));
                     options.dirty = true;
                 }
             }
@@ -260,7 +261,9 @@ fn options_input(
                 }
             }
             InputEvent::Confirm => match options.tab {
-                0 => activate_saves_action(&mut options, &mut lifecycle, &mut navigation, &gameplay),
+                0 => {
+                    activate_saves_action(&mut options, &mut lifecycle, &mut navigation, &gameplay)
+                }
                 1 => activate_mods_action(&mut options, &mut lifecycle, &mut navigation, &gameplay),
                 2 => activate_display_action(
                     &mut options,
@@ -337,8 +340,12 @@ fn activate_mods_action(
 
     let result = match action {
         0 => crate::mod_manager::set_mod_enabled(&item.manifest.id, !item.enabled),
-        1 => crate::mod_manager::set_mod_priority(&item.manifest.id, item.priority.saturating_sub(1)),
-        2 => crate::mod_manager::set_mod_priority(&item.manifest.id, item.priority.saturating_add(1)),
+        1 => {
+            crate::mod_manager::set_mod_priority(&item.manifest.id, item.priority.saturating_sub(1))
+        }
+        2 => {
+            crate::mod_manager::set_mod_priority(&item.manifest.id, item.priority.saturating_add(1))
+        }
         3 => {
             if options.pending_remove_id.as_deref() != Some(item.manifest.id.as_str()) {
                 options.pending_remove_id = Some(item.manifest.id.clone());
@@ -357,10 +364,18 @@ fn activate_mods_action(
     match result {
         Ok(()) => {
             options.pending_restart = true;
-            options.message = Some(format!("Updated {}. Restart the game to apply mod changes.", item.manifest.name));
+            options.message = Some(format!(
+                "Updated {}. Restart the game to apply mod changes.",
+                item.manifest.name
+            ));
             refresh_catalogs(options);
         }
-        Err(error) => options.message = Some(format!("Could not update mod {}: {error}", item.manifest.id)),
+        Err(error) => {
+            options.message = Some(format!(
+                "Could not update mod {}: {error}",
+                item.manifest.id
+            ))
+        }
     }
 }
 
@@ -397,7 +412,10 @@ fn import_save(options: &mut OptionsState, _lifecycle: &mut LifecycleState) {
         };
         match crate::persistence::install_imported_save(&source) {
             Ok(target) => {
-                options.message = Some(format!("Imported save as {}.", target.file_name().unwrap_or_default().to_string_lossy()));
+                options.message = Some(format!(
+                    "Imported save as {}.",
+                    target.file_name().unwrap_or_default().to_string_lossy()
+                ));
                 refresh_catalogs(options);
                 _lifecycle.refresh_saved_games();
             }
@@ -407,7 +425,8 @@ fn import_save(options: &mut OptionsState, _lifecycle: &mut LifecycleState) {
     #[cfg(target_os = "android")]
     {
         if android_request_storage_import("saves") {
-            options.message = Some("Choose a save file in the Android document picker.".to_string());
+            options.message =
+                Some("Choose a save file in the Android document picker.".to_string());
         } else {
             options.message = Some("The Android document picker is unavailable.".to_string());
         }
@@ -419,7 +438,9 @@ fn export_save(options: &mut OptionsState, source: &std::path::Path) {
         options.message = Some(format!("Could not export invalid save: {error}"));
         return;
     }
-    let file_name = source.file_name().map(|name| name.to_string_lossy().to_string())
+    let file_name = source
+        .file_name()
+        .map(|name| name.to_string_lossy().to_string())
         .unwrap_or_else(|| "ashen_chronicle_save.json.gz".to_string());
     #[cfg(not(target_os = "android"))]
     {
@@ -432,7 +453,9 @@ fn export_save(options: &mut OptionsState, source: &std::path::Path) {
             return;
         };
         match crate::persistence::export_save(source, &destination) {
-            Ok(()) => options.message = Some(format!("Exported save to {}.", destination.display())),
+            Ok(()) => {
+                options.message = Some(format!("Exported save to {}.", destination.display()))
+            }
             Err(error) => options.message = Some(format!("Could not export save: {error}")),
         }
     }
@@ -485,7 +508,11 @@ fn select_display_mode(options: &mut OptionsState, mode: desktop_display::Displa
     options.pending_display_mode = Some(mode);
     match desktop_display::save(mode) {
         Ok(()) => options.message = Some(format!("Display mode: {}.", mode.label())),
-        Err(error) => options.message = Some(format!("Display mode applied, but could not be saved: {error}")),
+        Err(error) => {
+            options.message = Some(format!(
+                "Display mode applied, but could not be saved: {error}"
+            ))
+        }
     }
 }
 
@@ -494,7 +521,9 @@ fn apply_display_mode(
     mut options: ResMut<OptionsState>,
     mut window: Single<&mut Window, With<bevy::window::PrimaryWindow>>,
 ) {
-    let Some(mode) = options.pending_display_mode.take() else { return; };
+    let Some(mode) = options.pending_display_mode.take() else {
+        return;
+    };
     desktop_display::apply(&mut window, mode);
 }
 
@@ -567,15 +596,17 @@ fn render_if_active(
         "Saves and mods are stored privately on this device. Use import/export to move them.",
     );
 
-    let tab_strip = commands.spawn(Node {
-        width: percent(100),
-        min_width: px(0),
-        flex_direction: FlexDirection::Row,
-        flex_wrap: FlexWrap::Wrap,
-        column_gap: bevy_presentation::responsive_compact_gap(),
-        row_gap: px(4),
-        ..default()
-    }).id();
+    let tab_strip = commands
+        .spawn(Node {
+            width: percent(100),
+            min_width: px(0),
+            flex_direction: FlexDirection::Row,
+            flex_wrap: FlexWrap::Wrap,
+            column_gap: bevy_presentation::responsive_compact_gap(),
+            row_gap: px(4),
+            ..default()
+        })
+        .id();
     commands.entity(panel).add_child(tab_strip);
     commands.entity(tab_strip).with_children(|tabs| {
         for (index, label) in [(0, "Saves"), (1, "Mods"), (2, "Display")] {
@@ -603,7 +634,9 @@ fn render_if_active(
                     TextColor(bevy_presentation::THEME_TEXT),
                 )],
             ));
-            if options.tab == index { tab.insert(UiSelected); }
+            if options.tab == index {
+                tab.insert(UiSelected);
+            }
         }
     });
 
@@ -636,11 +669,25 @@ fn render_saves_tab(commands: &mut Commands, panel: Entity, options: &OptionsSta
     );
     spawn_option_button(commands, panel, 0, "Import save", options.selected == 0);
     for (index, save) in options.saves.iter().enumerate() {
-        let name = save.file_name().map(|value| value.to_string_lossy().to_string())
+        let name = save
+            .file_name()
+            .map(|value| value.to_string_lossy().to_string())
             .unwrap_or_else(|| save.display().to_string());
-        spawn_option_button(commands, panel, index + 1, format!("Export: {name}"), options.selected == index + 1);
+        spawn_option_button(
+            commands,
+            panel,
+            index + 1,
+            format!("Export: {name}"),
+            options.selected == index + 1,
+        );
     }
-    spawn_option_button(commands, panel, options.saves.len() + 1, "Back", options.selected == options.saves.len() + 1);
+    spawn_option_button(
+        commands,
+        panel,
+        options.saves.len() + 1,
+        "Back",
+        options.selected == options.saves.len() + 1,
+    );
 }
 
 fn render_mods_tab(commands: &mut Commands, panel: Entity, options: &OptionsState) {
@@ -660,18 +707,39 @@ fn render_mods_tab(commands: &mut Commands, panel: Entity, options: &OptionsStat
             panel,
             format!(
                 "{} | id={} | version={} | priority={} | assets={}",
-                item.manifest.name, item.manifest.id, item.manifest.version,
-                item.priority, item.asset_count
+                item.manifest.name,
+                item.manifest.id,
+                item.manifest.version,
+                item.priority,
+                item.asset_count
             ),
         );
         let base = 1 + mod_index * 4;
         spawn_option_button(
-            commands, panel, base,
-            format!("{}: {}", if item.enabled { "Disable" } else { "Enable" }, item.manifest.name),
+            commands,
+            panel,
+            base,
+            format!(
+                "{}: {}",
+                if item.enabled { "Disable" } else { "Enable" },
+                item.manifest.name
+            ),
             options.selected == base,
         );
-        spawn_option_button(commands, panel, base + 1, format!("Lower priority: {}", item.manifest.name), options.selected == base + 1);
-        spawn_option_button(commands, panel, base + 2, format!("Raise priority: {}", item.manifest.name), options.selected == base + 2);
+        spawn_option_button(
+            commands,
+            panel,
+            base + 1,
+            format!("Lower priority: {}", item.manifest.name),
+            options.selected == base + 1,
+        );
+        spawn_option_button(
+            commands,
+            panel,
+            base + 2,
+            format!("Raise priority: {}", item.manifest.name),
+            options.selected == base + 2,
+        );
         spawn_option_button(
             commands,
             panel,
@@ -684,7 +752,13 @@ fn render_mods_tab(commands: &mut Commands, panel: Entity, options: &OptionsStat
             options.selected == base + 3,
         );
     }
-    spawn_option_button(commands, panel, 1 + options.mods.len() * 4, "Back", options.selected == 1 + options.mods.len() * 4);
+    spawn_option_button(
+        commands,
+        panel,
+        1 + options.mods.len() * 4,
+        "Back",
+        options.selected == 1 + options.mods.len() * 4,
+    );
 }
 
 fn spawn_option_button(
@@ -711,8 +785,14 @@ fn render_display_tab(commands: &mut Commands, panel: Entity, options: &OptionsS
         );
         let modes = [
             (desktop_display::DisplayMode::Fullscreen, "Fullscreen"),
-            (desktop_display::DisplayMode::Windowed1920x1080, "Windowed - 1920 x 1080"),
-            (desktop_display::DisplayMode::Windowed1280x720, "Windowed - 1280 x 720"),
+            (
+                desktop_display::DisplayMode::Windowed1920x1080,
+                "Windowed - 1920 x 1080",
+            ),
+            (
+                desktop_display::DisplayMode::Windowed1280x720,
+                "Windowed - 1280 x 720",
+            ),
         ];
         for (index, (mode, label)) in modes.into_iter().enumerate() {
             let button = bevy_presentation::spawn_action_button(
@@ -720,24 +800,40 @@ fn render_display_tab(commands: &mut Commands, panel: Entity, options: &OptionsS
                 panel,
                 index,
                 "display",
-                if options.display_mode == mode { format!("{label} (current)") } else { label.to_string() },
+                if options.display_mode == mode {
+                    format!("{label} (current)")
+                } else {
+                    label.to_string()
+                },
             );
-            if options.selected == index { commands.entity(button).insert(UiSelected); }
+            if options.selected == index {
+                commands.entity(button).insert(UiSelected);
+            }
         }
         let back = bevy_presentation::spawn_action_button(commands, panel, 3, "back", "Back");
-        if options.selected == 3 { commands.entity(back).insert(UiSelected); }
+        if options.selected == 3 {
+            commands.entity(back).insert(UiSelected);
+        }
     }
     #[cfg(target_os = "android")]
     {
-        bevy_presentation::spawn_muted_label(commands, panel, "Display settings are not available on Android yet.");
+        bevy_presentation::spawn_muted_label(
+            commands,
+            panel,
+            "Display settings are not available on Android yet.",
+        );
         let back = bevy_presentation::spawn_action_button(commands, panel, 0, "back", "Back");
-        if options.selected == 0 { commands.entity(back).insert(UiSelected); }
+        if options.selected == 0 {
+            commands.entity(back).insert(UiSelected);
+        }
     }
 }
 
 #[cfg(target_os = "android")]
 fn android_request_storage_import(kind: &str) -> bool {
-    let Some(app) = bevy::android::ANDROID_APP.get().cloned() else { return false; };
+    let Some(app) = bevy::android::ANDROID_APP.get().cloned() else {
+        return false;
+    };
     let kind = kind.to_owned();
     let java_app = app.clone();
     app.run_on_java_main_thread(Box::new(move || {
@@ -763,8 +859,14 @@ fn android_request_storage_import(kind: &str) -> bool {
 }
 
 #[cfg(target_os = "android")]
-fn android_request_storage_export(source: &std::path::Path, file_name: &str, mime_type: &str) -> bool {
-    let Some(app) = bevy::android::ANDROID_APP.get().cloned() else { return false; };
+fn android_request_storage_export(
+    source: &std::path::Path,
+    file_name: &str,
+    mime_type: &str,
+) -> bool {
+    let Some(app) = bevy::android::ANDROID_APP.get().cloned() else {
+        return false;
+    };
     let source = source.to_string_lossy().to_string();
     let file_name = file_name.to_owned();
     let mime_type = mime_type.to_owned();

@@ -130,14 +130,20 @@ pub(crate) fn list_installed_mods() -> io::Result<Vec<InstalledMod>> {
         let manifest_data = match fs::read(&manifest_path) {
             Ok(data) => data,
             Err(error) => {
-                bevy::log::warn!("Skipping mod without a readable manifest at {}: {error}", manifest_path.display());
+                bevy::log::warn!(
+                    "Skipping mod without a readable manifest at {}: {error}",
+                    manifest_path.display()
+                );
                 continue;
             }
         };
         let mut manifest: ModManifest = match serde_json::from_slice(&manifest_data) {
             Ok(manifest) => manifest,
             Err(error) => {
-                bevy::log::warn!("Skipping mod with invalid manifest {}: {error}", manifest_path.display());
+                bevy::log::warn!(
+                    "Skipping mod with invalid manifest {}: {error}",
+                    manifest_path.display()
+                );
                 continue;
             }
         };
@@ -150,8 +156,12 @@ pub(crate) fn list_installed_mods() -> io::Result<Vec<InstalledMod>> {
             continue;
         }
         let preferences = settings.mods.get(&manifest.id);
-        let enabled = preferences.map(|value| value.enabled).unwrap_or(manifest.enabled);
-        let priority = preferences.map(|value| value.priority).unwrap_or(manifest.priority);
+        let enabled = preferences
+            .map(|value| value.enabled)
+            .unwrap_or(manifest.enabled);
+        let priority = preferences
+            .map(|value| value.priority)
+            .unwrap_or(manifest.priority);
         manifest.enabled = enabled;
         manifest.priority = priority;
 
@@ -166,7 +176,9 @@ pub(crate) fn list_installed_mods() -> io::Result<Vec<InstalledMod>> {
     }
 
     installed.sort_by(|left, right| {
-        left.manifest.id.cmp(&right.manifest.id)
+        left.manifest
+            .id
+            .cmp(&right.manifest.id)
             .then_with(|| left.directory.cmp(&right.directory))
     });
     let mut seen_ids = HashSet::new();
@@ -202,7 +214,12 @@ pub(crate) fn remove_mod(id: &str) -> io::Result<()> {
     let installed = list_installed_mods()?
         .into_iter()
         .find(|item| item.manifest.id == id)
-        .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, format!("mod {id} is not installed")))?;
+        .ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::NotFound,
+                format!("mod {id} is not installed"),
+            )
+        })?;
 
     let mods_root = fs::canonicalize(&GamePaths::get().mods_dir)?;
     let mod_root = fs::canonicalize(&installed.directory)?;
@@ -234,7 +251,10 @@ pub(crate) fn install_mod_archive(archive_path: &Path) -> io::Result<InstalledMo
         .take(MAX_ARCHIVE_BYTES + 1)
         .read_to_end(&mut archive)?;
     if archive.len() as u64 > MAX_ARCHIVE_BYTES {
-        return Err(io::Error::new(io::ErrorKind::InvalidData, "mod archive is too large"));
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "mod archive is too large",
+        ));
     }
 
     let entries = parse_zip_archive(&archive)?;
@@ -271,7 +291,10 @@ pub(crate) fn install_mod_archive(archive_path: &Path) -> io::Result<InstalledMo
         let _ = fs::remove_dir_all(&staging);
         return Err(io::Error::new(
             io::ErrorKind::AlreadyExists,
-            format!("mod {} is already installed; remove it before installing a replacement", manifest.id),
+            format!(
+                "mod {} is already installed; remove it before installing a replacement",
+                manifest.id
+            ),
         ));
     }
 
@@ -299,13 +322,21 @@ pub(crate) fn resolve_asset_reference(reference: &str) -> io::Result<PathBuf> {
 
     if let Some(mod_reference) = reference.strip_prefix("mod:") {
         let (id, relative) = mod_reference.split_once('/').ok_or_else(|| {
-            io::Error::new(io::ErrorKind::InvalidInput, "mod asset reference must include a mod ID and file path")
+            io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "mod asset reference must include a mod ID and file path",
+            )
         })?;
         let relative = validate_relative_path(relative)?;
         let item = installed
             .iter()
             .find(|item| item.enabled && item.manifest.id == id)
-            .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, format!("asset provider mod {id} is not enabled")))?;
+            .ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::NotFound,
+                    format!("asset provider mod {id} is not enabled"),
+                )
+            })?;
         return resolve_inside(&item.directory.join("assets"), &relative);
     }
 
@@ -315,7 +346,8 @@ pub(crate) fn resolve_asset_reference(reference: &str) -> io::Result<PathBuf> {
         .filter(|item| item.enabled)
         .collect::<Vec<_>>();
     providers.sort_by(|left, right| {
-        right.priority
+        right
+            .priority
             .cmp(&left.priority)
             .then_with(|| right.manifest.id.cmp(&left.manifest.id))
     });
@@ -351,10 +383,11 @@ pub(crate) fn asset_override_conflicts() -> io::Result<Vec<AssetOverrideConflict
         if providers.len() < 2 {
             continue;
         }
-        providers.sort_by(|left, right| {
-            left.1.cmp(&right.1).then_with(|| left.0.cmp(&right.0))
-        });
-        let winner = providers.last().map(|entry| entry.0.clone()).unwrap_or_default();
+        providers.sort_by(|left, right| left.1.cmp(&right.1).then_with(|| left.0.cmp(&right.0)));
+        let winner = providers
+            .last()
+            .map(|entry| entry.0.clone())
+            .unwrap_or_default();
         conflicts.push(AssetOverrideConflict {
             path,
             providers,
@@ -378,28 +411,33 @@ fn read_settings(path: &Path) -> io::Result<ModSettingsFile> {
 }
 
 fn write_settings(path: &Path, settings: &ModSettingsFile) -> io::Result<()> {
-    let data = serde_json::to_vec_pretty(settings)
-        .map_err(|error| io::Error::other(error.to_string()))?;
+    let data =
+        serde_json::to_vec_pretty(settings).map_err(|error| io::Error::other(error.to_string()))?;
     let mut file = AtomicWriteFile::open(path)?;
     file.write_all(&data)?;
     file.commit()?;
     Ok(())
 }
 
-fn update_preferences(
-    id: &str,
-    update: impl FnOnce(&mut ModPreferences),
-) -> io::Result<()> {
+fn update_preferences(id: &str, update: impl FnOnce(&mut ModPreferences)) -> io::Result<()> {
     let installed = list_installed_mods()?
         .into_iter()
         .find(|item| item.manifest.id == id)
-        .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, format!("mod {id} is not installed")))?;
+        .ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::NotFound,
+                format!("mod {id} is not installed"),
+            )
+        })?;
     let path = &GamePaths::get().mod_settings_path;
     let mut settings = read_settings(path)?;
-    let preferences = settings.mods.entry(id.to_string()).or_insert(ModPreferences {
-        enabled: installed.enabled,
-        priority: installed.priority,
-    });
+    let preferences = settings
+        .mods
+        .entry(id.to_string())
+        .or_insert(ModPreferences {
+            enabled: installed.enabled,
+            priority: installed.priority,
+        });
     update(preferences);
     write_settings(path, &settings)
 }
@@ -410,9 +448,11 @@ pub(crate) fn validate_manifest(manifest: &ModManifest) -> io::Result<()> {
         || id.len() > 128
         || id.starts_with('.')
         || id.contains("..")
-        || !id
-            .chars()
-            .all(|character| character.is_ascii_lowercase() || character.is_ascii_digit() || matches!(character, '.' | '-' | '_'))
+        || !id.chars().all(|character| {
+            character.is_ascii_lowercase()
+                || character.is_ascii_digit()
+                || matches!(character, '.' | '-' | '_')
+        })
     {
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
@@ -440,10 +480,16 @@ pub(crate) fn validate_manifest(manifest: &ModManifest) -> io::Result<()> {
 fn validate_staged_mod(staging: &Path) -> io::Result<ModManifest> {
     let manifest_path = staging.join("manifest.json");
     let data = fs::read(&manifest_path).map_err(|error| {
-        io::Error::new(error.kind(), format!("mod archive is missing manifest.json: {error}"))
+        io::Error::new(
+            error.kind(),
+            format!("mod archive is missing manifest.json: {error}"),
+        )
     })?;
     let manifest: ModManifest = serde_json::from_slice(&data).map_err(|error| {
-        io::Error::new(io::ErrorKind::InvalidData, format!("invalid mod manifest: {error}"))
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("invalid mod manifest: {error}"),
+        )
     })?;
     validate_manifest(&manifest)?;
 
@@ -453,9 +499,12 @@ fn validate_staged_mod(staging: &Path) -> io::Result<ModManifest> {
         let root = fs::canonicalize(staging)?;
         let content_path = resolve_inside(&root, &relative)?;
         let content_data = fs::read(content_path)?;
-        let content: crate::content::CampaignContent =
-            serde_json::from_slice(&content_data).map_err(|error| {
-                io::Error::new(io::ErrorKind::InvalidData, format!("invalid mod content: {error}"))
+        let content: crate::content::CampaignContent = serde_json::from_slice(&content_data)
+            .map_err(|error| {
+                io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!("invalid mod content: {error}"),
+                )
             })?;
         if content.version != 1 {
             return Err(io::Error::new(
@@ -473,7 +522,11 @@ fn validate_staged_mod(staging: &Path) -> io::Result<ModManifest> {
     if assets.is_dir() {
         collect_files(&assets, &assets, &mut asset_files)?;
         for relative in &asset_files {
-            if relative.extension().and_then(|extension| extension.to_str()) != Some("png") {
+            if relative
+                .extension()
+                .and_then(|extension| extension.to_str())
+                != Some("png")
+            {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidData,
                     format!("unsupported mod asset format: {}", relative.display()),
@@ -498,7 +551,10 @@ fn validate_png_header(path: &Path) -> io::Result<()> {
     let mut file = File::open(path)?;
     let mut header = [0u8; 24];
     file.read_exact(&mut header).map_err(|error| {
-        io::Error::new(io::ErrorKind::InvalidData, format!("invalid PNG {}: {error}", path.display()))
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("invalid PNG {}: {error}", path.display()),
+        )
     })?;
     if &header[..8] != b"\x89PNG\r\n\x1a\n" || &header[12..16] != b"IHDR" {
         return Err(io::Error::new(
@@ -511,7 +567,10 @@ fn validate_png_header(path: &Path) -> io::Result<()> {
     if width == 0 || height == 0 || width > 8192 || height > 8192 {
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
-            format!("PNG dimensions are invalid or too large: {}", path.display()),
+            format!(
+                "PNG dimensions are invalid or too large: {}",
+                path.display()
+            ),
         ));
     }
     Ok(())
@@ -524,7 +583,10 @@ fn validate_relative_path(value: &str) -> io::Result<PathBuf> {
         || value.starts_with('/')
         || value.contains(':')
     {
-        return Err(io::Error::new(io::ErrorKind::InvalidInput, "path must be a safe relative path of at most 1024 bytes"));
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "path must be a safe relative path of at most 1024 bytes",
+        ));
     }
     let path = Path::new(value);
     let components = path.components().collect::<Vec<_>>();
@@ -583,7 +645,10 @@ fn collect_files(root: &Path, current: &Path, files: &mut Vec<PathBuf>) -> io::R
 }
 
 fn archive_root_prefix(entries: &[ArchiveEntry]) -> io::Result<Option<String>> {
-    if entries.iter().any(|entry| !entry.is_directory && entry.path == "manifest.json") {
+    if entries
+        .iter()
+        .any(|entry| !entry.is_directory && entry.path == "manifest.json")
+    {
         return Ok(None);
     }
     let mut root: Option<String> = None;
@@ -603,7 +668,8 @@ fn archive_root_prefix(entries: &[ArchiveEntry]) -> io::Result<Option<String>> {
             _ => {}
         }
     }
-    root.map(Some).ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "mod ZIP is empty"))
+    root.map(Some)
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "mod ZIP is empty"))
 }
 
 fn extract_entries(
@@ -621,7 +687,10 @@ fn extract_entries(
                     continue;
                 }
                 entry.path.strip_prefix(&prefix_with_slash).ok_or_else(|| {
-                    io::Error::new(io::ErrorKind::InvalidData, "ZIP entry is outside the package root")
+                    io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "ZIP entry is outside the package root",
+                    )
                 })?
             }
             None => entry.path.as_str(),
@@ -633,7 +702,10 @@ fn extract_entries(
         let relative = validate_relative_path(trimmed)?;
         let key = relative.to_string_lossy().to_string();
         if !seen.insert(key) {
-            return Err(io::Error::new(io::ErrorKind::InvalidData, "ZIP contains duplicate paths"));
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "ZIP contains duplicate paths",
+            ));
         }
 
         let target = destination.join(&relative);
@@ -643,13 +715,22 @@ fn extract_entries(
         }
         total_size = total_size.saturating_add(entry.contents.len());
         if total_size > MAX_EXTRACTED_BYTES {
-            return Err(io::Error::new(io::ErrorKind::InvalidData, "mod expands beyond the 256 MiB limit"));
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "mod expands beyond the 256 MiB limit",
+            ));
         }
         let parent = target.parent().ok_or_else(|| {
-            io::Error::new(io::ErrorKind::InvalidData, "ZIP file has no parent directory")
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                "ZIP file has no parent directory",
+            )
         })?;
         fs::create_dir_all(parent)?;
-        let mut file = fs::OpenOptions::new().write(true).create_new(true).open(&target)?;
+        let mut file = fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&target)?;
         file.write_all(&entry.contents)?;
     }
     Ok(())
@@ -660,7 +741,12 @@ fn parse_zip_archive(data: &[u8]) -> io::Result<Vec<ArchiveEntry>> {
     let eocd = (search_start..data.len().saturating_sub(3))
         .rev()
         .find(|offset| read_u32(data, *offset).ok() == Some(0x0605_4b50))
-        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "ZIP end-of-central-directory record not found"))?;
+        .ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                "ZIP end-of-central-directory record not found",
+            )
+        })?;
 
     let disk_number = read_u16(data, eocd + 4)?;
     let central_disk = read_u16(data, eocd + 6)?;
@@ -669,19 +755,42 @@ fn parse_zip_archive(data: &[u8]) -> io::Result<Vec<ArchiveEntry>> {
     let central_size = read_u32(data, eocd + 12)? as usize;
     let central_offset = read_u32(data, eocd + 16)? as usize;
     let comment_length = read_u16(data, eocd + 20)? as usize;
-    if eocd.checked_add(22).and_then(|offset| offset.checked_add(comment_length)) != Some(data.len()) {
-        return Err(io::Error::new(io::ErrorKind::InvalidData, "ZIP end record comment length is invalid"));
+    if eocd
+        .checked_add(22)
+        .and_then(|offset| offset.checked_add(comment_length))
+        != Some(data.len())
+    {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "ZIP end record comment length is invalid",
+        ));
     }
     if disk_number != 0 || central_disk != 0 || disk_entries != total_entries {
-        return Err(io::Error::new(io::ErrorKind::InvalidData, "multi-disk ZIP archives are not supported"));
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "multi-disk ZIP archives are not supported",
+        ));
     }
-    if total_entries == u16::MAX || central_size == u32::MAX as usize || central_offset == u32::MAX as usize {
-        return Err(io::Error::new(io::ErrorKind::InvalidData, "ZIP64 archives are not supported"));
+    if total_entries == u16::MAX
+        || central_size == u32::MAX as usize
+        || central_offset == u32::MAX as usize
+    {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "ZIP64 archives are not supported",
+        ));
     }
-    let central_end = central_offset.checked_add(central_size)
-        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "ZIP central directory offset overflow"))?;
+    let central_end = central_offset.checked_add(central_size).ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            "ZIP central directory offset overflow",
+        )
+    })?;
     if total_entries as usize > MAX_ARCHIVE_ENTRIES || central_end > eocd {
-        return Err(io::Error::new(io::ErrorKind::InvalidData, "ZIP central directory is invalid or too large"));
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "ZIP central directory is invalid or too large",
+        ));
     }
 
     let mut entries = Vec::with_capacity(total_entries as usize);
@@ -689,7 +798,10 @@ fn parse_zip_archive(data: &[u8]) -> io::Result<Vec<ArchiveEntry>> {
     let mut total_uncompressed = 0usize;
     for _ in 0..total_entries {
         if read_u32(data, offset)? != 0x0201_4b50 {
-            return Err(io::Error::new(io::ErrorKind::InvalidData, "invalid ZIP central directory entry"));
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "invalid ZIP central directory entry",
+            ));
         }
         let flags = read_u16(data, offset + 8)?;
         let method = read_u16(data, offset + 10)?;
@@ -703,84 +815,133 @@ fn parse_zip_archive(data: &[u8]) -> io::Result<Vec<ArchiveEntry>> {
         let local_offset = read_u32(data, offset + 42)? as usize;
         let end = offset
             .checked_add(46 + name_length + extra_length + comment_length)
-            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "ZIP entry length overflow"))?;
+            .ok_or_else(|| {
+                io::Error::new(io::ErrorKind::InvalidData, "ZIP entry length overflow")
+            })?;
         if end > central_end {
-            return Err(io::Error::new(io::ErrorKind::InvalidData, "truncated or oversized ZIP central directory"));
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "truncated or oversized ZIP central directory",
+            ));
         }
         if flags & 0x0001 != 0 || flags & 0x0040 != 0 {
-            return Err(io::Error::new(io::ErrorKind::InvalidData, "encrypted ZIP entries are not supported"));
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "encrypted ZIP entries are not supported",
+            ));
         }
         if method != 0 && method != 8 {
-            return Err(io::Error::new(io::ErrorKind::InvalidData, format!("unsupported ZIP compression method {method}")));
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("unsupported ZIP compression method {method}"),
+            ));
         }
         if uncompressed_size > MAX_ENTRY_BYTES || compressed_size > data.len() {
-            return Err(io::Error::new(io::ErrorKind::InvalidData, "ZIP entry exceeds the supported size limit"));
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "ZIP entry exceeds the supported size limit",
+            ));
         }
         if uncompressed_size > 0 {
-            total_uncompressed = total_uncompressed.checked_add(uncompressed_size)
-                .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "ZIP expanded size overflow"))?;
+            total_uncompressed = total_uncompressed
+                .checked_add(uncompressed_size)
+                .ok_or_else(|| {
+                    io::Error::new(io::ErrorKind::InvalidData, "ZIP expanded size overflow")
+                })?;
             if total_uncompressed > MAX_EXTRACTED_BYTES {
-                return Err(io::Error::new(io::ErrorKind::InvalidData, "mod expands beyond the 256 MiB limit"));
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "mod expands beyond the 256 MiB limit",
+                ));
             }
         }
 
         let name_range = checked_range(data, offset + 46, name_length)?;
-        let name = std::str::from_utf8(&data[name_range.clone()])
-            .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "ZIP entry names must be UTF-8"))?;
+        let name = std::str::from_utf8(&data[name_range.clone()]).map_err(|_| {
+            io::Error::new(io::ErrorKind::InvalidData, "ZIP entry names must be UTF-8")
+        })?;
         let is_directory = name.ends_with('/');
         let clean_name = name.trim_end_matches('/');
         validate_relative_path(clean_name)?;
         let unix_mode = (external_attributes >> 16) as u16;
         if unix_mode & 0o170000 == 0o120000 {
-            return Err(io::Error::new(io::ErrorKind::InvalidData, "symbolic links are not allowed in mod archives"));
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "symbolic links are not allowed in mod archives",
+            ));
         }
 
         let local_header_range = checked_range(data, local_offset, 30)?;
         if read_u32(data, local_offset)? != 0x0403_4b50 {
-            return Err(io::Error::new(io::ErrorKind::InvalidData, "invalid ZIP local file header"));
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "invalid ZIP local file header",
+            ));
         }
         let local_flags = read_u16(data, local_offset + 6)?;
         let local_method = read_u16(data, local_offset + 8)?;
         let local_name_length = read_u16(data, local_offset + 26)? as usize;
         let local_extra_length = read_u16(data, local_offset + 28)? as usize;
         if local_flags != flags || local_method != method {
-            return Err(io::Error::new(io::ErrorKind::InvalidData, "ZIP local and central headers disagree"));
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "ZIP local and central headers disagree",
+            ));
         }
         let local_name_start = local_header_range.end;
         let local_name_range = checked_range(data, local_name_start, local_name_length)?;
         if data[local_name_range] != data[name_range] {
-            return Err(io::Error::new(io::ErrorKind::InvalidData, "ZIP local and central entry names disagree"));
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "ZIP local and central entry names disagree",
+            ));
         }
         let payload_start = local_name_start
             .checked_add(local_name_length)
             .and_then(|value| value.checked_add(local_extra_length))
-            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "ZIP payload offset overflow"))?;
-        let payload_end = payload_start
-            .checked_add(compressed_size)
-            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "ZIP payload length overflow"))?;
+            .ok_or_else(|| {
+                io::Error::new(io::ErrorKind::InvalidData, "ZIP payload offset overflow")
+            })?;
+        let payload_end = payload_start.checked_add(compressed_size).ok_or_else(|| {
+            io::Error::new(io::ErrorKind::InvalidData, "ZIP payload length overflow")
+        })?;
         if payload_end > central_offset || payload_end > data.len() {
-            return Err(io::Error::new(io::ErrorKind::InvalidData, "truncated or overlapping ZIP entry data"));
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "truncated or overlapping ZIP entry data",
+            ));
         }
 
         let contents = if is_directory {
             Vec::new()
         } else if method == 0 {
             if compressed_size != uncompressed_size {
-                return Err(io::Error::new(io::ErrorKind::InvalidData, "stored ZIP entry has inconsistent sizes"));
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "stored ZIP entry has inconsistent sizes",
+                ));
             }
             data[payload_start..payload_end].to_vec()
         } else {
             let decoder = DeflateDecoder::new(&data[payload_start..payload_end]);
             let mut decoded = Vec::with_capacity(uncompressed_size.min(MAX_ENTRY_BYTES));
-            decoder.take((MAX_ENTRY_BYTES + 1) as u64).read_to_end(&mut decoded)?;
+            decoder
+                .take((MAX_ENTRY_BYTES + 1) as u64)
+                .read_to_end(&mut decoded)?;
             decoded
         };
 
         if contents.len() != uncompressed_size {
-            return Err(io::Error::new(io::ErrorKind::InvalidData, "ZIP entry has an unexpected expanded size"));
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "ZIP entry has an unexpected expanded size",
+            ));
         }
         if !is_directory && crc32(&contents) != expected_crc {
-            return Err(io::Error::new(io::ErrorKind::InvalidData, "ZIP entry checksum mismatch"));
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "ZIP entry checksum mismatch",
+            ));
         }
         entries.push(ArchiveEntry {
             path: clean_name.to_string(),
@@ -797,14 +958,20 @@ fn checked_range(data: &[u8], offset: usize, length: usize) -> io::Result<std::o
         io::Error::new(io::ErrorKind::InvalidData, "ZIP structure offset overflow")
     })?;
     if end > data.len() {
-        return Err(io::Error::new(io::ErrorKind::InvalidData, "truncated ZIP structure"));
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "truncated ZIP structure",
+        ));
     }
     Ok(offset..end)
 }
 
 fn read_u16(data: &[u8], offset: usize) -> io::Result<u16> {
     let range = checked_range(data, offset, 2)?;
-    Ok(u16::from_le_bytes([data[range.start], data[range.start + 1]]))
+    Ok(u16::from_le_bytes([
+        data[range.start],
+        data[range.start + 1],
+    ]))
 }
 
 fn read_u32(data: &[u8], offset: usize) -> io::Result<u32> {
@@ -856,15 +1023,16 @@ mod tests {
             ("high-a".to_string(), 5),
         ];
         providers.sort_by(|left, right| left.1.cmp(&right.1).then_with(|| left.0.cmp(&right.0)));
-        assert_eq!(providers.last().map(|value| value.0.as_str()), Some("high-b"));
+        assert_eq!(
+            providers.last().map(|value| value.0.as_str()),
+            Some("high-b")
+        );
     }
 
     #[test]
     fn asset_only_mods_are_valid_packages() {
-        let root = std::env::temp_dir().join(format!(
-            "ashen_asset_only_mod_{}",
-            std::process::id()
-        ));
+        let root =
+            std::env::temp_dir().join(format!("ashen_asset_only_mod_{}", std::process::id()));
         let assets = root.join("assets").join("icons");
         fs::create_dir_all(&assets).expect("test asset directories should be created");
         let manifest = ModManifest {
@@ -878,7 +1046,8 @@ mod tests {
         fs::write(
             root.join("manifest.json"),
             serde_json::to_vec(&manifest).expect("manifest should serialize"),
-        ).expect("manifest should be written");
+        )
+        .expect("manifest should be written");
         let mut png = vec![0u8; 24];
         png[..8].copy_from_slice(b"\x89PNG\r\n\x1a\n");
         png[12..16].copy_from_slice(b"IHDR");

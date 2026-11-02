@@ -119,7 +119,9 @@ fn resolve_internal_root() -> io::Result<PathBuf> {
                 Ok(Some(string.try_to_string(env)?))
             })
             .map_err(|error| {
-                io::Error::other(format!("could not resolve Android private storage: {error}"))
+                io::Error::other(format!(
+                    "could not resolve Android private storage: {error}"
+                ))
             })?
             .ok_or_else(|| io::Error::other("Android Activity returned an empty storage path"))?;
         Ok(PathBuf::from(root))
@@ -175,14 +177,20 @@ fn seed_bundled_mods(paths: &GamePaths) -> io::Result<()> {
         let manifest_data = match fs::read(&manifest_path) {
             Ok(data) => data,
             Err(error) => {
-                bevy::log::warn!("Skipping bundled mod without a readable manifest at {}: {error}", manifest_path.display());
+                bevy::log::warn!(
+                    "Skipping bundled mod without a readable manifest at {}: {error}",
+                    manifest_path.display()
+                );
                 continue;
             }
         };
         let manifest: crate::content::ModManifest = match serde_json::from_slice(&manifest_data) {
             Ok(manifest) => manifest,
             Err(error) => {
-                bevy::log::warn!("Skipping bundled mod with invalid manifest {}: {error}", manifest_path.display());
+                bevy::log::warn!(
+                    "Skipping bundled mod with invalid manifest {}: {error}",
+                    manifest_path.display()
+                );
                 continue;
             }
         };

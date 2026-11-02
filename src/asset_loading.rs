@@ -15,7 +15,10 @@ pub(crate) fn load_image_from_data(
     let path = crate::mod_manager::resolve_asset_reference(reference)
         .map_err(|error| error.to_string())?;
     if path.extension().and_then(|value| value.to_str()) != Some("png") {
-        return Err(format!("only PNG image assets are supported: {}", path.display()));
+        return Err(format!(
+            "only PNG image assets are supported: {}",
+            path.display()
+        ));
     }
     let bytes = fs::read(&path)
         .map_err(|error| format!("could not read asset {}: {error}", path.display()))?;

@@ -11,7 +11,9 @@ use crate::game::validate_loaded_state;
 use crate::game_paths::GamePaths;
 use crate::input::InputEvent;
 use crate::model::{create_inherited_state, create_new_state, GameState, WorldMode};
-use crate::persistence::{character_save_path, find_save_files, legacy_save_path, load_game_with_metadata};
+use crate::persistence::{
+    character_save_path, find_save_files, legacy_save_path, load_game_with_metadata,
+};
 use crate::presentation::{DeathView, FactionView, ItemView, ScreenView};
 use bevy::input_focus::{FocusCause, FocusGained, InputFocus};
 use bevy::prelude::*;
@@ -342,7 +344,10 @@ fn activate_selection(
                         let mut warnings = validate_loaded_state(&state);
                         let active_mods = crate::mod_manager::active_mods();
                         for dependency in &loaded.mod_dependencies {
-                            match active_mods.iter().find(|item| item.manifest.id == dependency.id) {
+                            match active_mods
+                                .iter()
+                                .find(|item| item.manifest.id == dependency.id)
+                            {
                                 None => warnings.push(format!(
                                     "Missing mod: {} ({}) version {}.",
                                     dependency.name, dependency.id, dependency.version
@@ -351,10 +356,15 @@ fn activate_selection(
                                     "Required mod is disabled: {} ({}) version {}.",
                                     dependency.name, dependency.id, dependency.version
                                 )),
-                                Some(item) if item.manifest.version != dependency.version => warnings.push(format!(
-                                    "Mod version mismatch: {} ({}) save={} installed={}.",
-                                    dependency.name, dependency.id, dependency.version, item.manifest.version
-                                )),
+                                Some(item) if item.manifest.version != dependency.version => {
+                                    warnings.push(format!(
+                                        "Mod version mismatch: {} ({}) save={} installed={}.",
+                                        dependency.name,
+                                        dependency.id,
+                                        dependency.version,
+                                        item.manifest.version
+                                    ))
+                                }
                                 Some(_) => {}
                             }
                         }

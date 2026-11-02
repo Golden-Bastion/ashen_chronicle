@@ -107,11 +107,22 @@ fn status(state: &GameState, console: &mut ConsoleState) {
 }
 fn where_content(console: &mut ConsoleState) {
     let paths = crate::game_paths::GamePaths::get();
-    console.output.push(format!("internal root: {}", paths.root.display()));
-    console.output.push(format!("saves: {}", paths.saves_dir.display()));
-    console.output.push(format!("mods: {}", paths.mods_dir.display()));
-    console.output.push(format!("imports: {}", paths.imports_dir.display()));
-    console.output.push(format!("bundled assets: {}", paths.bundled_assets_dir.display()));
+    console
+        .output
+        .push(format!("internal root: {}", paths.root.display()));
+    console
+        .output
+        .push(format!("saves: {}", paths.saves_dir.display()));
+    console
+        .output
+        .push(format!("mods: {}", paths.mods_dir.display()));
+    console
+        .output
+        .push(format!("imports: {}", paths.imports_dir.display()));
+    console.output.push(format!(
+        "bundled assets: {}",
+        paths.bundled_assets_dir.display()
+    ));
 }
 
 fn mods(console: &mut ConsoleState) {
@@ -132,7 +143,9 @@ fn mods(console: &mut ConsoleState) {
                 ));
             }
         }
-        Err(error) => console.output.push(format!("Could not inspect installed mods: {error}")),
+        Err(error) => console
+            .output
+            .push(format!("Could not inspect installed mods: {error}")),
     }
 }
 fn content(state: &GameState, console: &mut ConsoleState) {

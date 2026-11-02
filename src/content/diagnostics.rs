@@ -10,14 +10,26 @@ pub fn campaign_content_load_diagnostics() -> String {
 
     let mut output = String::new();
     let _ = writeln!(output, "internal game data: {}", paths.root.display());
-    let _ = writeln!(output, "bundled assets: {}", paths.bundled_assets_dir.display());
-    let _ = writeln!(output, "configured mods (settings apply next restart): {}", configured.len());
+    let _ = writeln!(
+        output,
+        "bundled assets: {}",
+        paths.bundled_assets_dir.display()
+    );
+    let _ = writeln!(
+        output,
+        "configured mods (settings apply next restart): {}",
+        configured.len()
+    );
     for item in &configured {
         let _ = writeln!(
             output,
             "  {} | {} | version={} enabled={} priority={} assets={}",
-            item.manifest.id, item.manifest.name, item.manifest.version,
-            item.enabled, item.priority, item.asset_count
+            item.manifest.id,
+            item.manifest.name,
+            item.manifest.version,
+            item.enabled,
+            item.priority,
+            item.asset_count
         );
     }
     let _ = writeln!(output, "active mod snapshot: {}", active.len());
@@ -25,17 +37,36 @@ pub fn campaign_content_load_diagnostics() -> String {
         let _ = writeln!(
             output,
             "  {} | {} | version={} enabled={} priority={} assets={}",
-            item.manifest.id, item.manifest.name, item.manifest.version,
-            item.enabled, item.priority, item.asset_count
+            item.manifest.id,
+            item.manifest.name,
+            item.manifest.version,
+            item.enabled,
+            item.priority,
+            item.asset_count
         );
     }
-    let _ = writeln!(output, "campaign content mods processed: {}", report.loaded_mods.len());
-    let _ = writeln!(output, "asset replacement conflicts (active snapshot): {}", conflicts.len());
+    let _ = writeln!(
+        output,
+        "campaign content mods processed: {}",
+        report.loaded_mods.len()
+    );
+    let _ = writeln!(
+        output,
+        "asset replacement conflicts (active snapshot): {}",
+        conflicts.len()
+    );
     for conflict in conflicts {
-        let providers = conflict.providers.iter()
+        let providers = conflict
+            .providers
+            .iter()
             .map(|(id, priority)| format!("{id} (priority {priority})"))
-            .collect::<Vec<_>>().join(", ");
-        let _ = writeln!(output, "  {}: {} -> winner {}", conflict.path, providers, conflict.winner);
+            .collect::<Vec<_>>()
+            .join(", ");
+        let _ = writeln!(
+            output,
+            "  {}: {} -> winner {}",
+            conflict.path, providers, conflict.winner
+        );
     }
     let _ = writeln!(output, "warnings: {}", report.warnings.len());
     for warning in &report.warnings {

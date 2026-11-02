@@ -6,7 +6,11 @@ use std::path::{Component, Path, PathBuf};
 
 impl ContentLoadReport {
     fn with_content(content: CampaignContent) -> Self {
-        Self { content, loaded_mods: Vec::new(), warnings: Vec::new() }
+        Self {
+            content,
+            loaded_mods: Vec::new(),
+            warnings: Vec::new(),
+        }
     }
 }
 
@@ -32,17 +36,24 @@ pub fn load_campaign_content_report() -> ContentLoadReport {
                 ));
                 merge_campaign_content(&mut report.content, mod_content);
             }
-            Ok(None) => {},
+            Ok(None) => {}
             Err(error) => report.warnings.push(format!(
                 "could not load mod {} ({}) from {}: {}",
-                manifest.id, manifest.name, item.directory.display(), error
+                manifest.id,
+                manifest.name,
+                item.directory.display(),
+                error
             )),
         }
     }
 
     // Cross-mod references are checked only after all enabled mods have contributed
     // their locations, factions, and event IDs.
-    merge_mod_events(&mut report.content, pending_mod_events, &mut report.warnings);
+    merge_mod_events(
+        &mut report.content,
+        pending_mod_events,
+        &mut report.warnings,
+    );
     report.content.loaded_mods = report.loaded_mods.clone();
     report.warnings.extend(report.content.validate());
     report
@@ -54,22 +65,33 @@ fn load_content_file(path: &Path) -> io::Result<CampaignContent> {
         .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error.to_string()))
 }
 
-fn load_mod_content(mod_root: &Path, manifest: &ModManifest) -> io::Result<Option<CampaignContent>> {
+fn load_mod_content(
+    mod_root: &Path,
+    manifest: &ModManifest,
+) -> io::Result<Option<CampaignContent>> {
     let Some(content_file) = manifest.content_file.as_deref() else {
         return Ok(None);
     };
     let relative = PathBuf::from(content_file);
     if relative.as_os_str().is_empty()
         || relative.is_absolute()
-        || !relative.components().all(|component| matches!(component, Component::Normal(_)))
+        || !relative
+            .components()
+            .all(|component| matches!(component, Component::Normal(_)))
         || content_file.contains('\\')
     {
-        return Err(io::Error::new(io::ErrorKind::PermissionDenied, "unsafe mod content path"));
+        return Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            "unsafe mod content path",
+        ));
     }
     let canonical_root = fs::canonicalize(mod_root)?;
     let canonical_path = fs::canonicalize(canonical_root.join(relative))?;
     if !canonical_path.starts_with(&canonical_root) || !canonical_path.is_file() {
-        return Err(io::Error::new(io::ErrorKind::PermissionDenied, "mod content path escapes its directory"));
+        return Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            "mod content path escapes its directory",
+        ));
     }
     load_content_file(&canonical_path).map(Some)
 }
@@ -81,7 +103,9 @@ fn merge_campaign_content(base: &mut CampaignContent, incoming: CampaignContent)
         incoming.world.locations,
         |entry| entry.id.clone(),
     );
-    merge_vec_by_key(&mut base.factions, incoming.factions, |entry| entry.id.clone());
+    merge_vec_by_key(&mut base.factions, incoming.factions, |entry| {
+        entry.id.clone()
+    });
     merge_vec_by_key(&mut base.npcs, incoming.npcs, |entry| entry.id.clone());
     merge_vec_by_key(&mut base.quests, incoming.quests, |entry| entry.id.clone());
     merge_vec_by_key(&mut base.encounters, incoming.encounters, |entry| {
@@ -101,9 +125,7 @@ fn merge_mod_events(
     warnings: &mut Vec<String>,
 ) {
     // Match asset precedence: highest priority wins, then reverse lexical mod ID.
-    mod_events.sort_by(|left, right| {
-        right.0.cmp(&left.0).then_with(|| right.1.cmp(&left.1))
-    });
+    mod_events.sort_by(|left, right| right.0.cmp(&left.0).then_with(|| right.1.cmp(&left.1)));
 
     let locations: HashSet<&str> = base
         .world
@@ -116,8 +138,7 @@ fn merge_mod_events(
         .iter()
         .map(|entry| entry.name.as_str())
         .collect();
-    let existing_ids: HashSet<String> =
-        base.events.iter().map(|event| event.id.clone()).collect();
+    let existing_ids: HashSet<String> = base.events.iter().map(|event| event.id.clone()).collect();
 
     let mut seen_ids = existing_ids.clone();
     let mut known_ids = existing_ids.clone();
@@ -184,7 +205,8 @@ fn merge_mod_events(
         }
     }
 
-    base.events.extend(pending.into_iter().map(|(_, event)| event));
+    base.events
+        .extend(pending.into_iter().map(|(_, event)| event));
 }
 
 fn validate_event_content(
@@ -325,7 +347,9 @@ mod tests {
         );
 
         assert!(!base.events.iter().any(|event| event.id == "bad.event"));
-        assert!(warnings.iter().any(|warning| warning.contains("zero weight")));
+        assert!(warnings
+            .iter()
+            .any(|warning| warning.contains("zero weight")));
     }
 
     #[test]
@@ -376,8 +400,14 @@ mod tests {
         let mut warnings = Vec::new();
         merge_mod_events(&mut base, pending, &mut warnings);
 
-        assert!(base.events.iter().any(|candidate| candidate.id == "events.cross_mod_reference"));
-        assert!(base.events.iter().any(|candidate| candidate.id == "events.later_dependency"));
+        assert!(base
+            .events
+            .iter()
+            .any(|candidate| candidate.id == "events.cross_mod_reference"));
+        assert!(base
+            .events
+            .iter()
+            .any(|candidate| candidate.id == "events.later_dependency"));
         assert!(warnings.is_empty(), "unexpected warnings: {warnings:?}");
     }
 }

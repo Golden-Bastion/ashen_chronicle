@@ -48,12 +48,20 @@ pub struct LoadedSave {
 const MAX_SAVE_BYTES: u64 = 8 * 1024 * 1024;
 
 pub fn save_game(path: &Path, state: &GameState) -> io::Result<()> {
-    let dependencies = state.campaign_content.as_ref()
-        .map(|content| content.loaded_mods.iter().map(|manifest| SavedModDependency {
-            id: manifest.id.clone(),
-            name: manifest.name.clone(),
-            version: manifest.version.clone(),
-        }).collect())
+    let dependencies = state
+        .campaign_content
+        .as_ref()
+        .map(|content| {
+            content
+                .loaded_mods
+                .iter()
+                .map(|manifest| SavedModDependency {
+                    id: manifest.id.clone(),
+                    name: manifest.name.clone(),
+                    version: manifest.version.clone(),
+                })
+                .collect()
+        })
         .unwrap_or_default();
     save_game_with_dependencies(path, state, &dependencies)
 }
@@ -79,15 +87,21 @@ fn serialize_save(
     let payload = SaveFile {
         save_file_version: SAVE_FILE_VERSION,
         game: state,
-        runtime_generated_events: state.campaign_content.as_ref()
-            .map(|content| content.events.iter()
-                .filter(|event| is_runtime_generated_event(&event.id))
-                .cloned().collect())
+        runtime_generated_events: state
+            .campaign_content
+            .as_ref()
+            .map(|content| {
+                content
+                    .events
+                    .iter()
+                    .filter(|event| is_runtime_generated_event(&event.id))
+                    .cloned()
+                    .collect()
+            })
             .unwrap_or_default(),
         mod_dependencies: mod_dependencies.to_vec(),
     };
-    serde_json::to_vec_pretty(&payload)
-        .map_err(|error| io::Error::other(error.to_string()))
+    serde_json::to_vec_pretty(&payload).map_err(|error| io::Error::other(error.to_string()))
 }
 
 fn write_save_file_exclusive(
@@ -190,7 +204,10 @@ pub fn load_game_with_metadata(path: &Path) -> io::Result<LoadedSave> {
         }
     }
     game.campaign_content = Some(content);
-    Ok(LoadedSave { game, mod_dependencies: parsed.mod_dependencies })
+    Ok(LoadedSave {
+        game,
+        mod_dependencies: parsed.mod_dependencies,
+    })
 }
 
 fn is_runtime_generated_event(event_id: &str) -> bool {
@@ -250,7 +267,6 @@ pub fn export_save(source: &Path, destination: &Path) -> io::Result<()> {
     }
     Ok(())
 }
-
 
 pub fn character_save_path(directory: &Path, character_name: &str) -> PathBuf {
     directory.join(format!(
@@ -445,8 +461,7 @@ mod tests {
 
         save_game_with_dependencies(&path, &state, &dependencies)
             .expect("save with dependencies should succeed");
-        let loaded = load_game_with_metadata(&path)
-            .expect("save metadata should load");
+        let loaded = load_game_with_metadata(&path).expect("save metadata should load");
         assert_eq!(loaded.mod_dependencies, dependencies);
         fs::remove_dir_all(&dir).expect("temporary directory should be removed");
     }
