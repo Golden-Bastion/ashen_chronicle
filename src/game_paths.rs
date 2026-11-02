@@ -128,8 +128,7 @@ fn resolve_internal_root() -> io::Result<PathBuf> {
     #[cfg(not(target_os = "android"))]
     {
         let data_root = dirs::data_local_dir()
-            .or_else(dirs::data_dir)
-            .ok_or_else(|| io::Error::other("no application data directory is available"))?;
+            .ok_or_else(|| io::Error::other("no local application data directory is available"))?;
         Ok(data_root.join(GAME_DIRECTORY_NAME))
     }
 }
