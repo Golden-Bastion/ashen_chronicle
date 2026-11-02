@@ -554,11 +554,12 @@ fn render_if_active(
     }
 
     let root = bevy_presentation::spawn_screen(&mut commands, "OPTIONS");
-    let panel = bevy_presentation::spawn_surface(
-        &mut commands,
-        root,
-        bevy_presentation::SurfaceTone::Strong,
-    );
+    let panel = bevy_presentation::spawn_panel(&mut commands, root);
+    commands.entity(panel).insert((
+        bevy_presentation::UiSurface,
+        BorderColor::all(bevy_presentation::THEME_BORDER),
+        BackgroundColor(bevy_presentation::THEME_SURFACE_STRONG),
+    ));
     bevy_presentation::spawn_muted_label(
         &mut commands,
         panel,
