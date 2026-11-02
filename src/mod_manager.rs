@@ -331,7 +331,7 @@ fn update_preferences(
     write_settings(path, &settings)
 }
 
-fn validate_manifest(manifest: &ModManifest) -> io::Result<()> {
+pub(crate) fn validate_manifest(manifest: &ModManifest) -> io::Result<()> {
     let id = manifest.id.as_str();
     if id.is_empty()
         || id.len() > 128
