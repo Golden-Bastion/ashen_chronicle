@@ -375,13 +375,14 @@ fn validate_staged_mod(staging: &Path) -> io::Result<ModManifest> {
             serde_json::from_slice(&content_data).map_err(|error| {
                 io::Error::new(io::ErrorKind::InvalidData, format!("invalid mod content: {error}"))
             })?;
-        let issues = content.validate();
-        if !issues.is_empty() {
+        if content.version != 1 {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
-                format!("mod content validation failed: {}", issues.join("; ")),
+                format!("unsupported mod content version {}", content.version),
             ));
         }
+        // Cross-mod references are validated after all active content has been
+        // merged. A mod is allowed to reference base or another mod's content.
         has_payload = true;
     }
 
