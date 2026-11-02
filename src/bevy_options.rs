@@ -121,6 +121,7 @@ fn refresh_catalogs(options: &mut OptionsState) {
             Vec::new()
         }
     };
+    options.selected = options.selected.min(options_selection_end(options));
 }
 
 #[cfg(target_os = "android")]
@@ -410,6 +411,10 @@ fn import_save(options: &mut OptionsState) {
 }
 
 fn export_save(options: &mut OptionsState, source: &std::path::Path) {
+    if let Err(error) = crate::persistence::validate_save(source) {
+        options.message = Some(format!("Could not export invalid save: {error}"));
+        return;
+    }
     let file_name = source.file_name().map(|name| name.to_string_lossy().to_string())
         .unwrap_or_else(|| "ashen_chronicle_save.json.gz".to_string());
     #[cfg(not(target_os = "android"))]
