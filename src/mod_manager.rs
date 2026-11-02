@@ -260,9 +260,14 @@ pub(crate) fn install_mod_archive(archive_path: &Path) -> io::Result<InstalledMo
     };
 
     let target = paths.mods_dir.join(&manifest.id);
-    if list_installed_mods()?.iter().any(|item| item.manifest.id == manifest.id)
-        || target.exists()
-    {
+    let installed = match list_installed_mods() {
+        Ok(installed) => installed,
+        Err(error) => {
+            let _ = fs::remove_dir_all(&staging);
+            return Err(error);
+        }
+    };
+    if installed.iter().any(|item| item.manifest.id == manifest.id) || target.exists() {
         let _ = fs::remove_dir_all(&staging);
         return Err(io::Error::new(
             io::ErrorKind::AlreadyExists,
@@ -270,7 +275,10 @@ pub(crate) fn install_mod_archive(archive_path: &Path) -> io::Result<InstalledMo
         ));
     }
 
-    fs::rename(&staging, &target)?;
+    if let Err(error) = fs::rename(&staging, &target) {
+        let _ = fs::remove_dir_all(&staging);
+        return Err(error);
+    }
     let settings_result = update_preferences(&manifest.id, |preferences| {
         preferences.enabled = manifest.enabled;
         preferences.priority = manifest.priority;
@@ -829,6 +837,38 @@ mod tests {
         ];
         providers.sort_by(|left, right| left.1.cmp(&right.1).then_with(|| left.0.cmp(&right.0)));
         assert_eq!(providers.last().map(|value| value.0.as_str()), Some("high-b"));
+    }
+
+    #[test]
+    fn asset_only_mods_are_valid_packages() {
+        let root = std::env::temp_dir().join(format!(
+            "ashen_asset_only_mod_{}",
+            std::process::id()
+        ));
+        let assets = root.join("assets").join("icons");
+        fs::create_dir_all(&assets).expect("test asset directories should be created");
+        let manifest = ModManifest {
+            id: "example.assets".into(),
+            name: "Example Assets".into(),
+            version: "1.0.0".into(),
+            enabled: true,
+            priority: 0,
+            content_file: None,
+        };
+        fs::write(
+            root.join("manifest.json"),
+            serde_json::to_vec(&manifest).expect("manifest should serialize"),
+        ).expect("manifest should be written");
+        let mut png = vec![0u8; 24];
+        png[..8].copy_from_slice(b"\x89PNG\r\n\x1a\n");
+        png[12..16].copy_from_slice(b"IHDR");
+        png[16..20].copy_from_slice(&32u32.to_be_bytes());
+        png[20..24].copy_from_slice(&32u32.to_be_bytes());
+        fs::write(assets.join("icon.png"), png).expect("asset should be written");
+
+        let validated = validate_staged_mod(&root).expect("asset-only mod should validate");
+        assert_eq!(validated.id, "example.assets");
+        fs::remove_dir_all(root).expect("test directory should be removed");
     }
 
     #[test]
