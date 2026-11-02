@@ -103,6 +103,23 @@ pub(crate) fn list_installed_mods() -> io::Result<Vec<InstalledMod>> {
     }
 
     installed.sort_by(|left, right| {
+        left.manifest.id.cmp(&right.manifest.id)
+            .then_with(|| left.directory.cmp(&right.directory))
+    });
+    let mut seen_ids = HashSet::new();
+    installed.retain(|item| {
+        if seen_ids.insert(item.manifest.id.clone()) {
+            true
+        } else {
+            bevy::log::warn!(
+                "Skipping duplicate installed mod ID {} at {}",
+                item.manifest.id,
+                item.directory.display()
+            );
+            false
+        }
+    });
+    installed.sort_by(|left, right| {
         left.priority
             .cmp(&right.priority)
             .then_with(|| left.manifest.id.cmp(&right.manifest.id))
@@ -178,7 +195,9 @@ pub(crate) fn install_mod_archive(archive_path: &Path) -> io::Result<InstalledMo
     };
 
     let target = paths.mods_dir.join(&manifest.id);
-    if target.exists() {
+    if list_installed_mods()?.iter().any(|item| item.manifest.id == manifest.id)
+        || target.exists()
+    {
         let _ = fs::remove_dir_all(&staging);
         return Err(io::Error::new(
             io::ErrorKind::AlreadyExists,
@@ -445,18 +464,6 @@ fn collect_files(root: &Path, current: &Path, files: &mut Vec<PathBuf>) -> io::R
     Ok(())
 }
 
-fn update_preferences_file(
-    settings: &mut ModSettingsFile,
-    id: &str,
-    enabled: bool,
-    priority: i32,
-) {
-    settings.mods.insert(
-        id.to_string(),
-        ModPreferences { enabled, priority },
-    );
-}
-
 fn archive_root_prefix(entries: &[ArchiveEntry]) -> io::Result<Option<String>> {
     if entries.iter().any(|entry| !entry.is_directory && entry.path == "manifest.json") {
         return Ok(None);
@@ -558,6 +565,7 @@ fn parse_zip_archive(data: &[u8]) -> io::Result<Vec<ArchiveEntry>> {
 
     let mut entries = Vec::with_capacity(total_entries as usize);
     let mut offset = central_offset;
+    let mut total_uncompressed = 0usize;
     for _ in 0..total_entries {
         if read_u32(data, offset)? != 0x0201_4b50 {
             return Err(io::Error::new(io::ErrorKind::InvalidData, "invalid ZIP central directory entry"));
@@ -587,8 +595,16 @@ fn parse_zip_archive(data: &[u8]) -> io::Result<Vec<ArchiveEntry>> {
         if uncompressed_size > MAX_ENTRY_BYTES || compressed_size > data.len() {
             return Err(io::Error::new(io::ErrorKind::InvalidData, "ZIP entry exceeds the supported size limit"));
         }
+        if uncompressed_size > 0 {
+            total_uncompressed = total_uncompressed.checked_add(uncompressed_size)
+                .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "ZIP expanded size overflow"))?;
+            if total_uncompressed > MAX_EXTRACTED_BYTES {
+                return Err(io::Error::new(io::ErrorKind::InvalidData, "mod expands beyond the 256 MiB limit"));
+            }
+        }
 
-        let name = std::str::from_utf8(&data[offset + 46..offset + 46 + name_length])
+        let name_range = checked_range(data, offset + 46, name_length)?;
+        let name = std::str::from_utf8(&data[name_range.clone()])
             .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "ZIP entry names must be UTF-8"))?;
         let is_directory = name.ends_with('/');
         let clean_name = name.trim_end_matches('/');
@@ -598,19 +614,31 @@ fn parse_zip_archive(data: &[u8]) -> io::Result<Vec<ArchiveEntry>> {
             return Err(io::Error::new(io::ErrorKind::InvalidData, "symbolic links are not allowed in mod archives"));
         }
 
-        let local_name_length = read_u16(data, local_offset + 26)? as usize;
-        let local_extra_length = read_u16(data, local_offset + 28)? as usize;
+        let local_header_range = checked_range(data, local_offset, 30)?;
         if read_u32(data, local_offset)? != 0x0403_4b50 {
             return Err(io::Error::new(io::ErrorKind::InvalidData, "invalid ZIP local file header"));
         }
-        let payload_start = local_offset
-            .checked_add(30 + local_name_length + local_extra_length)
+        let local_flags = read_u16(data, local_offset + 6)?;
+        let local_method = read_u16(data, local_offset + 8)?;
+        let local_name_length = read_u16(data, local_offset + 26)? as usize;
+        let local_extra_length = read_u16(data, local_offset + 28)? as usize;
+        if local_flags != flags || local_method != method {
+            return Err(io::Error::new(io::ErrorKind::InvalidData, "ZIP local and central headers disagree"));
+        }
+        let local_name_start = local_header_range.end;
+        let local_name_range = checked_range(data, local_name_start, local_name_length)?;
+        if data[local_name_range] != data[name_range] {
+            return Err(io::Error::new(io::ErrorKind::InvalidData, "ZIP local and central entry names disagree"));
+        }
+        let payload_start = local_name_start
+            .checked_add(local_name_length)
+            .and_then(|value| value.checked_add(local_extra_length))
             .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "ZIP payload offset overflow"))?;
         let payload_end = payload_start
             .checked_add(compressed_size)
             .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "ZIP payload length overflow"))?;
-        if payload_end > data.len() {
-            return Err(io::Error::new(io::ErrorKind::InvalidData, "truncated ZIP entry data"));
+        if payload_end > central_offset || payload_end > data.len() {
+            return Err(io::Error::new(io::ErrorKind::InvalidData, "truncated or overlapping ZIP entry data"));
         }
 
         let contents = if is_directory {
@@ -643,18 +671,29 @@ fn parse_zip_archive(data: &[u8]) -> io::Result<Vec<ArchiveEntry>> {
     Ok(entries)
 }
 
-fn read_u16(data: &[u8], offset: usize) -> io::Result<u16> {
-    let bytes = data.get(offset..offset + 2).ok_or_else(|| {
-        io::Error::new(io::ErrorKind::InvalidData, "truncated ZIP structure")
+fn checked_range(data: &[u8], offset: usize, length: usize) -> io::Result<std::ops::Range<usize>> {
+    let end = offset.checked_add(length).ok_or_else(|| {
+        io::Error::new(io::ErrorKind::InvalidData, "ZIP structure offset overflow")
     })?;
-    Ok(u16::from_le_bytes([bytes[0], bytes[1]]))
+    if end > data.len() {
+        return Err(io::Error::new(io::ErrorKind::InvalidData, "truncated ZIP structure"));
+    }
+    Ok(offset..end)
+}
+
+fn read_u16(data: &[u8], offset: usize) -> io::Result<u16> {
+    let range = checked_range(data, offset, 2)?;
+    Ok(u16::from_le_bytes([data[range.start], data[range.start + 1]]))
 }
 
 fn read_u32(data: &[u8], offset: usize) -> io::Result<u32> {
-    let bytes = data.get(offset..offset + 4).ok_or_else(|| {
-        io::Error::new(io::ErrorKind::InvalidData, "truncated ZIP structure")
-    })?;
-    Ok(u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]))
+    let range = checked_range(data, offset, 4)?;
+    Ok(u32::from_le_bytes([
+        data[range.start],
+        data[range.start + 1],
+        data[range.start + 2],
+        data[range.start + 3],
+    ]))
 }
 
 fn crc32(data: &[u8]) -> u32 {
