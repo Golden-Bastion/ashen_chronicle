@@ -110,6 +110,10 @@ fn sync_screen(
 fn refresh_catalogs(options: &mut OptionsState) {
     let paths = crate::game_paths::GamePaths::get();
     options.saves = crate::persistence::find_save_files(&paths.saves_dir).unwrap_or_default();
+    let legacy = crate::persistence::legacy_save_path(&paths.root);
+    if legacy.is_file() && !options.saves.iter().any(|path| path == &legacy) {
+        options.saves.push(legacy);
+    }
     options.mods = match crate::mod_manager::list_installed_mods() {
         Ok(mods) => mods,
         Err(error) => {
@@ -790,11 +794,14 @@ mod tests {
     #[test]
     fn options_tabs_have_three_categories() {
         let mut options = OptionsState::default();
-        for tab in 0..3 {
-            options.tab = tab;
-            assert!(options_selection_end(&options) >= 0);
-        }
-        assert_eq!((2 + 1) % 3, 0);
+        assert_eq!(options_selection_end(&options), 1); // Import and Back.
+        options.tab = 1;
+        assert_eq!(options_selection_end(&options), 1); // Install and Back.
+        options.tab = 2;
+        #[cfg(not(target_os = "android"))]
+        assert_eq!(options_selection_end(&options), 3);
+        #[cfg(target_os = "android")]
+        assert_eq!(options_selection_end(&options), 0);
     }
 
     #[test]
