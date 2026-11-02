@@ -96,8 +96,14 @@ public class MainActivity extends GameActivity {
                         throw new IOException("The selected document could not be opened.");
                     }
                     byte[] buffer = new byte[8192];
+                    long copied = 0;
+                    long maximum = "mods".equals(kind) ? 128L * 1024 * 1024 : 8L * 1024 * 1024;
                     int length;
                     while ((length = input.read(buffer)) != -1) {
+                        copied += length;
+                        if (copied > maximum) {
+                            throw new IOException("The selected file exceeds the import size limit.");
+                        }
                         output.write(buffer, 0, length);
                     }
                     output.getFD().sync();
