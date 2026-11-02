@@ -165,7 +165,33 @@ fn seed_bundled_mods(paths: &GamePaths) -> io::Result<()> {
     if marker.exists() || !paths.bundled_mods_dir.is_dir() {
         return Ok(());
     }
-    copy_directory_without_overwriting(&paths.bundled_mods_dir, &paths.mods_dir)?;
+
+    for entry in fs::read_dir(&paths.bundled_mods_dir)? {
+        let entry = entry?;
+        let source = entry.path();
+        if !source.is_dir() {
+            continue;
+        }
+        let manifest_path = source.join("manifest.json");
+        let manifest_data = match fs::read(&manifest_path) {
+            Ok(data) => data,
+            Err(error) => {
+                bevy::log::warn!("Skipping bundled mod without a readable manifest at {}: {error}", manifest_path.display());
+                continue;
+            }
+        };
+        let manifest: crate::content::ModManifest = match serde_json::from_slice(&manifest_data) {
+            Ok(manifest) => manifest,
+            Err(error) => {
+                bevy::log::warn!("Skipping bundled mod with invalid manifest {}: {error}", manifest_path.display());
+                continue;
+            }
+        };
+        crate::mod_manager::validate_manifest(&manifest)?;
+        let destination = paths.mods_dir.join(&manifest.id);
+        copy_directory_without_overwriting(&source, &destination)?;
+    }
+
     fs::write(marker, b"1\n")
 }
 
