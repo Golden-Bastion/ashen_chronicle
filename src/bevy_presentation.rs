@@ -938,7 +938,11 @@ pub fn spawn_option_row(
     }
     commands.entity(parent).add_child(row);
 
-    OptionRowSlots { row, label, controls }
+    OptionRowSlots {
+        row,
+        label,
+        controls,
+    }
 }
 
 /// Adds a value/heading to an option row, aligned to the side of its slot.
@@ -2038,9 +2042,16 @@ mod tests {
             .iter()
             .collect::<Vec<_>>();
         assert_eq!(left_order, vec![fixture.left.label, fixture.left.controls]);
-        assert_eq!(right_order, vec![fixture.right.controls, fixture.right.label]);
-        assert!(world.get::<OptionRowLabelSlot>(fixture.left.label).is_some());
-        assert!(world.get::<OptionRowControlsSlot>(fixture.right.controls).is_some());
+        assert_eq!(
+            right_order,
+            vec![fixture.right.controls, fixture.right.label]
+        );
+        assert!(world
+            .get::<OptionRowLabelSlot>(fixture.left.label)
+            .is_some());
+        assert!(world
+            .get::<OptionRowControlsSlot>(fixture.right.controls)
+            .is_some());
     }
 
     #[test]
