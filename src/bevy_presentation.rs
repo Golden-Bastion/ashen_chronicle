@@ -814,6 +814,198 @@ fn action_button_node() -> Node {
     }
 }
 
+/// Which side of a reusable option row contains its label/value.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OptionRowLabelSide {
+    Left,
+    Right,
+}
+
+/// The two content slots created by a shared Options/settings row.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct OptionRowSlots {
+    pub row: Entity,
+    pub label: Entity,
+    pub controls: Entity,
+}
+
+#[derive(Component)]
+struct OptionRowLabelSlot;
+
+#[derive(Component)]
+struct OptionRowControlsSlot;
+
+fn option_row_node() -> Node {
+    Node {
+        width: percent(100),
+        min_width: px(0),
+        min_height: touch_target_size(),
+        padding: UiRect::axes(responsive_surface_padding(), responsive_vmin(0.833)),
+        border: UiRect::all(px(1)),
+        flex_direction: FlexDirection::Row,
+        flex_wrap: FlexWrap::Wrap,
+        column_gap: responsive_compact_gap(),
+        row_gap: responsive_compact_gap(),
+        justify_content: JustifyContent::SpaceBetween,
+        align_items: AlignItems::Center,
+        ..default()
+    }
+}
+
+fn option_row_label_node(side: OptionRowLabelSide) -> Node {
+    Node {
+        min_width: px(0),
+        flex_grow: 1.0,
+        flex_shrink: 1.0,
+        flex_direction: FlexDirection::Column,
+        row_gap: px(2),
+        align_items: match side {
+            OptionRowLabelSide::Left => AlignItems::Start,
+            OptionRowLabelSide::Right => AlignItems::End,
+        },
+        ..default()
+    }
+}
+
+fn option_row_controls_node(label_side: OptionRowLabelSide) -> Node {
+    Node {
+        min_width: px(0),
+        flex_shrink: 0.0,
+        flex_direction: FlexDirection::Row,
+        flex_wrap: FlexWrap::Wrap,
+        column_gap: responsive_compact_gap(),
+        row_gap: responsive_compact_gap(),
+        justify_content: match label_side {
+            OptionRowLabelSide::Left => JustifyContent::End,
+            OptionRowLabelSide::Right => JustifyContent::Start,
+        },
+        align_items: AlignItems::Center,
+        ..default()
+    }
+}
+
+fn compact_action_button_node() -> Node {
+    Node {
+        width: Val::Auto,
+        min_width: touch_target_size(),
+        max_width: px(140),
+        min_height: touch_target_size(),
+        flex_grow: 0.0,
+        flex_shrink: 0.0,
+        padding: UiRect::axes(responsive_vmin(1.111), responsive_vmin(UI_ACTION_PADDING_VERTICAL_VMIN)),
+        border: UiRect::all(px(1)),
+        justify_content: JustifyContent::Center,
+        align_items: AlignItems::Center,
+        ..default()
+    }
+}
+
+/// Creates a bordered, responsive row with a flexible label column and a
+/// compact control group. The Right side mirrors the slots for settings whose
+/// controls lead and whose current value is right-aligned.
+pub fn spawn_option_row(
+    commands: &mut Commands,
+    parent: Entity,
+    label_side: OptionRowLabelSide,
+) -> OptionRowSlots {
+    let row = commands
+        .spawn((
+            UiSurface,
+            option_row_node(),
+            BorderColor::all(THEME_BORDER),
+            BackgroundColor(THEME_SURFACE),
+        ))
+        .id();
+    let label = commands
+        .spawn((OptionRowLabelSlot, option_row_label_node(label_side)))
+        .id();
+    let controls = commands
+        .spawn((OptionRowControlsSlot, option_row_controls_node(label_side)))
+        .id();
+
+    match label_side {
+        OptionRowLabelSide::Left => {
+            commands.entity(row).add_child(label);
+            commands.entity(row).add_child(controls);
+        }
+        OptionRowLabelSide::Right => {
+            commands.entity(row).add_child(controls);
+            commands.entity(row).add_child(label);
+        }
+    }
+    commands.entity(parent).add_child(row);
+
+    OptionRowSlots { row, label, controls }
+}
+
+/// Adds a value/heading to an option row, aligned to the side of its slot.
+pub fn spawn_option_row_value(
+    commands: &mut Commands,
+    parent: Entity,
+    text: impl Into<String>,
+    alignment: OptionRowLabelSide,
+) -> Entity {
+    let justification = match alignment {
+        OptionRowLabelSide::Left => Justify::Left,
+        OptionRowLabelSide::Right => Justify::Right,
+    };
+    let value = commands
+        .spawn((
+            Text::new(text.into()),
+            Node {
+                width: percent(100),
+                min_width: px(0),
+                ..default()
+            },
+            TextLayout::new(justification, LineBreak::WordOrCharacter),
+            TextContent,
+            TextFont::from_font_size(label_font_size()),
+            TextColor(THEME_TEXT),
+        ))
+        .id();
+    commands.entity(parent).add_child(value);
+    value
+}
+
+/// Spawns a labelled action sized for horizontal option/settings control groups.
+pub fn spawn_compact_action_button(
+    commands: &mut Commands,
+    parent: Entity,
+    index: usize,
+    label: impl Into<String>,
+) -> Entity {
+    let button = commands
+        .spawn((
+            Button,
+            Hovered::default(),
+            UiTouchTargetShape::MinimumBounds {
+                width: UI_TOUCH_TARGET_PX as u16,
+                height: UI_TOUCH_TARGET_PX as u16,
+            },
+            ChoiceButton { index },
+            UiActionButton,
+            UiStyledButton,
+            compact_action_button_node(),
+            BorderColor::all(THEME_BORDER),
+            BackgroundColor(THEME_SURFACE),
+            children![(
+                Text::new(label.into()),
+                Node {
+                    min_width: px(0),
+                    max_width: percent(100),
+                    ..default()
+                },
+                TextLayout::new(Justify::Center, LineBreak::WordOrCharacter),
+                TextContent,
+                TextFont::from_font_size(muted_font_size()),
+                TextColor(THEME_TEXT),
+            )],
+        ))
+        .id();
+    commands.entity(parent).add_child(button);
+    button
+}
+
 #[derive(Component)]
 struct UiIconName(String);
 
@@ -1794,6 +1986,67 @@ mod tests {
         assert_eq!(node.flex_grow, 0.0);
         assert_eq!(node.flex_shrink, 0.0);
         assert_eq!(node.min_height, touch_target_size());
+    }
+    #[test]
+    fn option_rows_mirror_label_and_control_columns() {
+        let left_label = option_row_label_node(OptionRowLabelSide::Left);
+        let left_controls = option_row_controls_node(OptionRowLabelSide::Left);
+        assert_eq!(left_label.flex_grow, 1.0);
+        assert_eq!(left_label.align_items, AlignItems::Start);
+        assert_eq!(left_controls.justify_content, JustifyContent::End);
+
+        let right_label = option_row_label_node(OptionRowLabelSide::Right);
+        let right_controls = option_row_controls_node(OptionRowLabelSide::Right);
+        assert_eq!(right_label.flex_grow, 1.0);
+        assert_eq!(right_label.align_items, AlignItems::End);
+        assert_eq!(right_controls.justify_content, JustifyContent::Start);
+    }
+
+    #[test]
+    fn option_rows_create_slots_in_the_requested_visual_order() {
+        #[derive(Resource)]
+        struct Fixture {
+            left: OptionRowSlots,
+            right: OptionRowSlots,
+        }
+
+        fn setup(mut commands: Commands) {
+            let parent = commands.spawn_empty().id();
+            let left = spawn_option_row(&mut commands, parent, OptionRowLabelSide::Left);
+            let right = spawn_option_row(&mut commands, parent, OptionRowLabelSide::Right);
+            commands.insert_resource(Fixture { left, right });
+        }
+
+        let mut world = World::new();
+        let mut schedule = Schedule::default();
+        schedule.add_systems(setup);
+        schedule.run(&mut world);
+
+        let fixture = world.resource::<Fixture>();
+        let left_order = world
+            .get::<Children>(fixture.left.row)
+            .unwrap()
+            .iter()
+            .collect::<Vec<_>>();
+        let right_order = world
+            .get::<Children>(fixture.right.row)
+            .unwrap()
+            .iter()
+            .collect::<Vec<_>>();
+        assert_eq!(left_order, vec![fixture.left.label, fixture.left.controls]);
+        assert_eq!(right_order, vec![fixture.right.controls, fixture.right.label]);
+        assert!(world.get::<OptionRowLabelSlot>(fixture.left.label).is_some());
+        assert!(world.get::<OptionRowControlsSlot>(fixture.right.controls).is_some());
+    }
+
+    #[test]
+    fn compact_action_buttons_keep_touch_sized_bounds_without_filling_the_row() {
+        let node = compact_action_button_node();
+        assert_eq!(node.width, Val::Auto);
+        assert_eq!(node.min_width, touch_target_size());
+        assert_eq!(node.min_height, touch_target_size());
+        assert_eq!(node.flex_grow, 0.0);
+        assert_eq!(node.flex_shrink, 0.0);
     }
 
     #[test]
