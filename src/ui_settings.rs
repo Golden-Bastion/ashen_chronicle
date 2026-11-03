@@ -385,8 +385,7 @@ mod tests {
         assert!((world.resource::<UiScale>().0 - 0.80).abs() < f32::EPSILON);
         assert!((world.resource::<RemSize>().0 - resized_viewport_em * 1.45).abs() < 0.01);
         assert!(
-            (world.get::<EmSize>(layout_node).unwrap().0 - resized_viewport_em * 0.80).abs()
-                < 0.01
+            (world.get::<EmSize>(layout_node).unwrap().0 - resized_viewport_em * 0.80).abs() < 0.01
         );
         assert!(
             (world.get::<EmSize>(late_layout_node).unwrap().0 - resized_viewport_em * 0.80).abs()
