@@ -752,14 +752,33 @@ fn render_interface_tab(
         "Adjust fixed-size interface elements and text independently. Changes apply immediately and are saved on this device.",
     );
 
-    for (index, label) in [
-        (0, format!("Decrease UI scale (currently {}%)", settings.ui_scale_percent())),
-        (1, format!("Increase UI scale (currently {}%)", settings.ui_scale_percent())),
-        (2, format!("Decrease font size (currently {}%)", settings.font_size_percent())),
-        (3, format!("Increase font size (currently {}%)", settings.font_size_percent())),
-        (4, "Reset interface settings".to_string()),
-        (5, "Back".to_string()),
-    ] {
+    bevy_presentation::spawn_muted_label(
+        commands,
+        panel,
+        format!("UI scale: {}%", settings.ui_scale_percent()),
+    );
+    for (index, label) in [(0, "Decrease UI scale"), (1, "Increase UI scale")] {
+        let button =
+            bevy_presentation::spawn_action_button(commands, panel, index, "display", label);
+        if options.selected == index {
+            commands.entity(button).insert(UiSelected);
+        }
+    }
+
+    bevy_presentation::spawn_muted_label(
+        commands,
+        panel,
+        format!("Font size: {}%", settings.font_size_percent()),
+    );
+    for (index, label) in [(2, "Decrease font size"), (3, "Increase font size")] {
+        let button =
+            bevy_presentation::spawn_action_button(commands, panel, index, "display", label);
+        if options.selected == index {
+            commands.entity(button).insert(UiSelected);
+        }
+    }
+
+    for (index, label) in [(4, "Reset interface settings"), (5, "Back")] {
         let icon = if index == 5 { "back" } else { "display" };
         let button = bevy_presentation::spawn_action_button(commands, panel, index, icon, label);
         if options.selected == index {

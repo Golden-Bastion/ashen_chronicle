@@ -1766,7 +1766,7 @@ mod tests {
     }
 
     #[test]
-    fn responsive_fonts_use_viewport_units() {
+    fn responsive_fonts_use_root_relative_units() {
         assert_eq!(title_font_size(), FontSize::Rem(1.8));
         assert_eq!(label_font_size(), FontSize::Rem(1.0));
         assert_eq!(muted_font_size(), FontSize::Rem(0.9));
