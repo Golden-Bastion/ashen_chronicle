@@ -16,7 +16,8 @@ mod bevy_spatial;
 mod bevy_touch;
 mod content;
 #[cfg(not(target_os = "android"))]
-mod desktop_display;
+mod desktop_window;
+mod ui_settings;
 mod events;
 mod game;
 mod game_paths;
