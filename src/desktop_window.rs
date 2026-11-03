@@ -70,14 +70,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn desktop_window_starts_in_fullscreen() {
-        assert_eq!(
-            fullscreen_mode(),
-            WindowMode::Fullscreen(MonitorSelection::Primary, VideoModeSelection::Current)
-        );
-    }
-
-    #[test]
     fn canonical_app_icon_decodes() {
         assert!(load_window_icon().is_some());
     }

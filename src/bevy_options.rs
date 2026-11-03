@@ -577,6 +577,7 @@ fn render_if_active(
             let mut tab = tabs.spawn((
                 Button,
                 Hovered::default(),
+                bevy_presentation::UiTouchTargetShape::MinimumHeight,
                 bevy_presentation::ChoiceButton { index },
                 bevy_presentation::UiTabButton { index },
                 bevy_presentation::UiStyledButton,

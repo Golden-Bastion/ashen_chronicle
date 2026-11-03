@@ -1059,6 +1059,10 @@ fn spawn_control(
     let mut entity = commands.spawn((
         Button,
         Hovered::default(),
+        bevy_presentation::UiTouchTargetShape::MinimumBounds {
+            width: 52,
+            height: 48,
+        },
         SpatialControlButton,
         action,
         Node {

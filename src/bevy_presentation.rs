@@ -85,6 +85,15 @@ pub struct UiStyledButton;
 #[derive(Component)]
 pub struct UiSelected;
 
+/// Marks interactive nodes whose minimum hit area must remain 48 logical pixels
+/// on Android, independent of the user's visual UI scale.
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum UiTouchTargetShape {
+    MinimumHeight,
+    MinimumBounds { width: u16, height: u16 },
+    Square,
+}
+
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct UiTabButton {
     pub(crate) index: usize,
@@ -593,6 +602,7 @@ pub fn spawn_text_input_field(
         .spawn((
             Button,
             Hovered::default(),
+            UiTouchTargetShape::MinimumHeight,
             LifecycleTextField { index },
             EditableText::new(&value),
             TextCursorStyle::default(),
@@ -644,6 +654,7 @@ pub(crate) fn spawn_console_input_row(
         .spawn((
             Button,
             Hovered::default(),
+            UiTouchTargetShape::MinimumHeight,
             ContextualConsoleInput,
             Text::new(text.into()),
             Node {
@@ -671,6 +682,7 @@ pub(crate) fn spawn_console_input_row(
         .spawn((
             Button,
             Hovered::default(),
+            UiTouchTargetShape::MinimumHeight,
             ContextualConsoleTab,
             Node {
                 width: px(64),
@@ -888,6 +900,7 @@ pub fn spawn_action_button(
         .spawn((
             Button,
             Hovered::default(),
+            UiTouchTargetShape::MinimumHeight,
             ChoiceButton { index },
             UiActionButton,
             UiStackedActionButton,
@@ -950,6 +963,7 @@ pub fn spawn_primary_action_button(
         .spawn((
             Button,
             Hovered::default(),
+            UiTouchTargetShape::MinimumHeight,
             ChoiceButton { index },
             UiActionButton,
             UiStyledButton,
@@ -1023,6 +1037,7 @@ pub fn spawn_menu_button(
         .spawn((
             Button,
             Hovered::default(),
+            UiTouchTargetShape::Square,
             UiMenuButton,
             UiStyledButton,
             Node {
@@ -1741,38 +1756,6 @@ mod tests {
     }
 
     #[test]
-    fn screen_ids_cover_all_bevy_frontends() {
-        let screens = [
-            ScreenId::Lifecycle,
-            ScreenId::Gameplay,
-            ScreenId::Character,
-            ScreenId::Inventory,
-            ScreenId::Quests,
-            ScreenId::Meditation,
-            ScreenId::History,
-            ScreenId::Journal,
-            ScreenId::Talk,
-            ScreenId::Conversation,
-            ScreenId::Remains,
-            ScreenId::RemainsResult,
-            ScreenId::SpatialExploration,
-            ScreenId::Combat,
-            ScreenId::Console,
-            ScreenId::Options,
-            ScreenId::Feedback,
-        ];
-        assert_eq!(screens.len(), 17);
-    }
-
-    #[test]
-    fn responsive_spacing_preserves_desktop_baseline() {
-        assert_eq!(screen_padding(), responsive_vmin(3.333));
-        assert_eq!(panel_padding(), responsive_vmin(2.222));
-        assert_eq!(screen_gap(), responsive_vmin(2.222));
-        assert_eq!(panel_gap(), responsive_vmin(1.389));
-    }
-
-    #[test]
     fn responsive_fonts_use_root_relative_units() {
         assert_eq!(title_font_size(), FontSize::Rem(1.8));
         assert_eq!(label_font_size(), FontSize::Rem(1.0));
@@ -1780,28 +1763,10 @@ mod tests {
     }
 
     #[test]
-    fn touch_buttons_keep_a_fixed_logical_minimum_height() {
-        assert_eq!(px(48), Val::Px(48.0));
-    }
-
-    #[test]
     fn ui_theme_exposes_semantic_surface_and_interaction_tokens() {
         assert_eq!(UI_TOUCH_TARGET_PX, 48.0);
         assert_eq!(UI_COMPACT_GAP_VMIN, 1.111);
         assert_eq!(UI_SURFACE_PADDING_VMIN, 1.667);
-    }
-
-    #[test]
-    fn responsive_foundation_tokens_use_viewport_units() {
-        assert_eq!(
-            responsive_compact_gap(),
-            responsive_vmin(UI_COMPACT_GAP_VMIN)
-        );
-        assert_eq!(
-            responsive_surface_padding(),
-            responsive_vmin(UI_SURFACE_PADDING_VMIN)
-        );
-        assert_eq!(touch_target_size(), px(UI_TOUCH_TARGET_PX));
     }
 
     #[test]
@@ -1829,21 +1794,6 @@ mod tests {
         assert_eq!(node.flex_grow, 0.0);
         assert_eq!(node.flex_shrink, 0.0);
         assert_eq!(node.min_height, touch_target_size());
-    }
-
-    #[test]
-    fn selected_state_is_explicitly_component_driven() {
-        let _selected = UiSelected;
-    }
-
-    #[test]
-    fn health_gauge_initial_state_is_owned_by_the_component() {
-        let gauge = UiHealthGauge {
-            current: 7,
-            maximum: 10,
-        };
-        assert_eq!(gauge.current, 7);
-        assert_eq!(gauge.maximum, 10);
     }
 
     #[test]

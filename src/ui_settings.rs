@@ -3,6 +3,8 @@ use std::io::{self, Write};
 
 use atomic_write_file::AtomicWriteFile;
 use bevy::prelude::*;
+use bevy::ui::prelude::{EmSize, RemSize};
+use bevy::ui::UiScale;
 use serde::{Deserialize, Serialize};
 
 const SETTINGS_FILE_NAME: &str = "ui_settings.json";
@@ -130,6 +132,7 @@ fn apply_ui_settings(
     mut ui_scale: ResMut<UiScale>,
     mut rem_size: ResMut<RemSize>,
     mut em_sizes: Query<&mut EmSize, Without<TextFont>>,
+    mut touch_targets: Query<(&mut Node, &crate::bevy_presentation::UiTouchTargetShape)>,
 ) {
     let target_ui_scale = settings.ui_scale();
     if (ui_scale.0 - target_ui_scale).abs() > f32::EPSILON {
@@ -137,18 +140,80 @@ fn apply_ui_settings(
     }
 
     let viewport_min = window.width().min(window.height());
-    let base_viewport_em = viewport_min * BASE_REM_VMIN_PERCENT;
-    let target_rem_size = base_viewport_em * settings.font_scale();
-    if (rem_size.0 - target_rem_size).abs() > 0.01 {
-        rem_size.0 = target_rem_size;
-    }
+    if viewport_min > 0.0 {
+        let base_viewport_em = viewport_min * BASE_REM_VMIN_PERCENT;
+        let target_rem_size = base_viewport_em * settings.font_scale();
+        if (rem_size.0 - target_rem_size).abs() > 0.01 {
+            rem_size.0 = target_rem_size;
+        }
 
-    let target_em_size = base_viewport_em * settings.ui_scale();
-    for mut em_size in &mut em_sizes {
-        if (em_size.0 - target_em_size).abs() > 0.01 {
-            em_size.0 = target_em_size;
+        // Newly spawned UI nodes need their EmSize updated too, not only nodes
+        // that existed when the user last changed a preference.
+        let target_em_size = base_viewport_em * target_ui_scale;
+        for mut em_size in &mut em_sizes {
+            if (em_size.0 - target_em_size).abs() > 0.01 {
+                em_size.0 = target_em_size;
+            }
         }
     }
+
+    // Bevy's UiScale also scales fixed-pixel dimensions. Compensate marked
+    // interactive controls on Android so their final hit area remains at least
+    // 48 logical pixels even when visual UI scaling is below 100%.
+    let touch_scale = if cfg!(target_os = "android") {
+        target_ui_scale
+    } else {
+        1.0
+    };
+    let target_touch_size = Val::Px(touch_target_base_size(
+        crate::bevy_presentation::UI_TOUCH_TARGET_PX,
+        touch_scale,
+    ));
+    for (mut node, shape) in &mut touch_targets {
+        match shape {
+            crate::bevy_presentation::UiTouchTargetShape::MinimumHeight => {
+                if node.min_height != target_touch_size {
+                    node.min_height = target_touch_size;
+                }
+            }
+            crate::bevy_presentation::UiTouchTargetShape::MinimumBounds { width, height } => {
+                let target_width = Val::Px(touch_target_base_size(f32::from(*width), touch_scale));
+                let target_height = Val::Px(touch_target_base_size(f32::from(*height), touch_scale));
+                if node.min_width != target_width {
+                    node.min_width = target_width;
+                }
+                if node.min_height != target_height {
+                    node.min_height = target_height;
+                }
+            }
+            crate::bevy_presentation::UiTouchTargetShape::Square => {
+                if node.width != target_touch_size {
+                    node.width = target_touch_size;
+                }
+                if node.min_width != target_touch_size {
+                    node.min_width = target_touch_size;
+                }
+                if node.height != target_touch_size {
+                    node.height = target_touch_size;
+                }
+                if node.min_height != target_touch_size {
+                    node.min_height = target_touch_size;
+                }
+            }
+        }
+    }
+}
+
+fn touch_target_base_size(target_size: f32, ui_scale: f32) -> f32 {
+    let scale = if ui_scale.is_finite() {
+        ui_scale.clamp(
+            f32::from(MIN_UI_SCALE_PERCENT) / 100.0,
+            f32::from(MAX_UI_SCALE_PERCENT) / 100.0,
+        )
+    } else {
+        1.0
+    };
+    target_size / scale
 }
 
 #[cfg(test)]
@@ -196,5 +261,104 @@ mod tests {
         settings.normalize();
         assert_eq!(settings.ui_scale_percent(), MAX_UI_SCALE_PERCENT);
         assert_eq!(settings.font_size_percent(), MIN_FONT_SIZE_PERCENT);
+    }
+
+    #[test]
+    fn touch_target_compensation_preserves_48_logical_pixels() {
+        for scale in [0.75, 1.0, 1.25] {
+            let base_size = touch_target_base_size(crate::bevy_presentation::UI_TOUCH_TARGET_PX, scale);
+            assert!((base_size * scale - crate::bevy_presentation::UI_TOUCH_TARGET_PX).abs() < 0.001);
+        }
+    }
+
+    #[test]
+    fn applying_settings_updates_layout_typography_and_touch_targets() {
+        let mut world = World::new();
+        let settings = UiSettings {
+            ui_scale_percent: 75,
+            font_size_percent: 150,
+        };
+        world.insert_resource(settings);
+        world.insert_resource(UiScale(1.0));
+        world.insert_resource(RemSize(20.0));
+        world.spawn((
+            Window {
+                resolution: (1280, 720).into(),
+                ..default()
+            },
+            bevy::window::PrimaryWindow,
+        ));
+
+        let layout_node = world.spawn((Node::default(), EmSize(20.0))).id();
+        let text_node = world
+            .spawn((Node::default(), EmSize(20.0), TextFont::default()))
+            .id();
+        let height_target = world
+            .spawn((
+                Node {
+                    min_height: Val::Px(crate::bevy_presentation::UI_TOUCH_TARGET_PX),
+                    ..default()
+                },
+                crate::bevy_presentation::UiTouchTargetShape::MinimumHeight,
+            ))
+            .id();
+        let minimum_bounds_target = world
+            .spawn((
+                Node {
+                    min_width: Val::Px(52.0),
+                    min_height: Val::Px(crate::bevy_presentation::UI_TOUCH_TARGET_PX),
+                    ..default()
+                },
+                crate::bevy_presentation::UiTouchTargetShape::MinimumBounds {
+                    width: 52,
+                    height: 48,
+                },
+            ))
+            .id();
+        let square_target = world
+            .spawn((
+                Node {
+                    width: Val::Px(crate::bevy_presentation::UI_TOUCH_TARGET_PX),
+                    min_width: Val::Px(crate::bevy_presentation::UI_TOUCH_TARGET_PX),
+                    height: Val::Px(crate::bevy_presentation::UI_TOUCH_TARGET_PX),
+                    min_height: Val::Px(crate::bevy_presentation::UI_TOUCH_TARGET_PX),
+                    ..default()
+                },
+                crate::bevy_presentation::UiTouchTargetShape::Square,
+            ))
+            .id();
+
+        let mut schedule = Schedule::default();
+        schedule.add_systems(apply_ui_settings);
+        schedule.run(&mut world);
+
+        let base_viewport_em = 720.0 * BASE_REM_VMIN_PERCENT;
+        assert!((world.resource::<UiScale>().0 - 0.75).abs() < f32::EPSILON);
+        assert!((world.resource::<RemSize>().0 - base_viewport_em * 1.5).abs() < 0.01);
+        assert!(
+            (world.get::<EmSize>(layout_node).unwrap().0 - base_viewport_em * 0.75).abs()
+                < 0.01
+        );
+        assert!((world.get::<EmSize>(text_node).unwrap().0 - 20.0).abs() < 0.01);
+
+        let touch_scale = if cfg!(target_os = "android") { 0.75 } else { 1.0 };
+        let expected_touch_size = touch_target_base_size(
+            crate::bevy_presentation::UI_TOUCH_TARGET_PX,
+            touch_scale,
+        );
+        assert_eq!(
+            world.get::<Node>(height_target).unwrap().min_height,
+            Val::Px(expected_touch_size)
+        );
+
+        let bounds = world.get::<Node>(minimum_bounds_target).unwrap();
+        assert_eq!(bounds.min_width, Val::Px(touch_target_base_size(52.0, touch_scale)));
+        assert_eq!(bounds.min_height, Val::Px(expected_touch_size));
+
+        let square = world.get::<Node>(square_target).unwrap();
+        assert_eq!(square.width, Val::Px(expected_touch_size));
+        assert_eq!(square.min_width, Val::Px(expected_touch_size));
+        assert_eq!(square.height, Val::Px(expected_touch_size));
+        assert_eq!(square.min_height, Val::Px(expected_touch_size));
     }
 }
