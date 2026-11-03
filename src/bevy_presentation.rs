@@ -1793,8 +1793,14 @@ mod tests {
 
     #[test]
     fn responsive_foundation_tokens_use_viewport_units() {
-        assert_eq!(responsive_compact_gap(), responsive_vmin(UI_COMPACT_GAP_VMIN));
-        assert_eq!(responsive_surface_padding(), responsive_vmin(UI_SURFACE_PADDING_VMIN));
+        assert_eq!(
+            responsive_compact_gap(),
+            responsive_vmin(UI_COMPACT_GAP_VMIN)
+        );
+        assert_eq!(
+            responsive_surface_padding(),
+            responsive_vmin(UI_SURFACE_PADDING_VMIN)
+        );
         assert_eq!(touch_target_size(), px(UI_TOUCH_TARGET_PX));
     }
 

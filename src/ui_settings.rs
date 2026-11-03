@@ -76,9 +76,10 @@ impl UiSettings {
     }
 
     pub(crate) fn adjust_ui_scale(&mut self, delta: i16) -> bool {
-        let next = (i16::from(self.ui_scale_percent) + delta)
-            .clamp(i16::from(MIN_UI_SCALE_PERCENT), i16::from(MAX_UI_SCALE_PERCENT))
-            as u8;
+        let next = (i16::from(self.ui_scale_percent) + delta).clamp(
+            i16::from(MIN_UI_SCALE_PERCENT),
+            i16::from(MAX_UI_SCALE_PERCENT),
+        ) as u8;
         if next == self.ui_scale_percent {
             return false;
         }
@@ -87,11 +88,10 @@ impl UiSettings {
     }
 
     pub(crate) fn adjust_font_size(&mut self, delta: i16) -> bool {
-        let next = (i16::from(self.font_size_percent) + delta)
-            .clamp(
-                i16::from(MIN_FONT_SIZE_PERCENT),
-                i16::from(MAX_FONT_SIZE_PERCENT),
-            ) as u8;
+        let next = (i16::from(self.font_size_percent) + delta).clamp(
+            i16::from(MIN_FONT_SIZE_PERCENT),
+            i16::from(MAX_FONT_SIZE_PERCENT),
+        ) as u8;
         if next == self.font_size_percent {
             return false;
         }
