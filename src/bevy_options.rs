@@ -236,20 +236,12 @@ fn options_input(
                 options.selected = 0;
                 options.message = None;
                 options.pending_remove_id = None;
-                #[cfg(not(target_os = "android"))]
-                {
-                    options.pending_display_mode = None;
-                }
             }
             InputEvent::Tab => {
                 options.tab = (options.tab + 1) % 3;
                 options.selected = 0;
                 options.message = None;
                 options.pending_remove_id = None;
-                #[cfg(not(target_os = "android"))]
-                {
-                    options.pending_display_mode = None;
-                }
             }
             InputEvent::Confirm => match options.tab {
                 0 => {
