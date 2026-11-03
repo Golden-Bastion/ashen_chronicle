@@ -747,7 +747,7 @@ fn render_location(
                 position_type: PositionType::Absolute,
                 left: percent(5),
                 bottom: percent(9),
-                padding: UiRect::all(vmin(1.5)),
+                padding: UiRect::all(bevy_presentation::responsive_vmin(1.5)),
                 flex_direction: FlexDirection::Column,
                 row_gap: bevy_presentation::responsive_compact_gap(),
                 border: UiRect::all(px(1)),
@@ -859,7 +859,10 @@ fn render_world_context(
                 position_type: PositionType::Absolute,
                 left: percent(5),
                 top: percent(28),
-                padding: UiRect::axes(vmin(1.3), vmin(0.9)),
+                padding: UiRect::axes(
+                    bevy_presentation::responsive_vmin(1.3),
+                    bevy_presentation::responsive_vmin(0.9),
+                ),
                 border: UiRect::all(px(1)),
                 ..default()
             },
@@ -882,7 +885,7 @@ fn render_player_hud(commands: &mut Commands, parent: Entity, view: &WorldView) 
             flex_direction: FlexDirection::Row,
             justify_content: JustifyContent::End,
             align_items: AlignItems::Start,
-            padding: UiRect::all(vmin(1.0)),
+            padding: UiRect::all(bevy_presentation::responsive_vmin(1.0)),
             column_gap: bevy_presentation::responsive_compact_gap(),
             ..default()
         })
@@ -899,9 +902,9 @@ fn render_player_hud(commands: &mut Commands, parent: Entity, view: &WorldView) 
                 min_width: px(180),
                 max_width: px(230),
                 min_height: px(104),
-                padding: UiRect::all(vmin(1.1)),
+                padding: UiRect::all(bevy_presentation::responsive_vmin(1.1)),
                 flex_direction: FlexDirection::Column,
-                row_gap: vmin(0.7),
+                row_gap: bevy_presentation::responsive_vmin(0.7),
                 border: UiRect::all(px(1)),
                 ..default()
             },

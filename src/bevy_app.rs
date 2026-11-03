@@ -4,7 +4,7 @@
 //! frontend-independent systems and Bevy adapters.
 
 #[cfg(not(target_os = "android"))]
-use crate::desktop_display;
+use crate::desktop_window;
 use bevy::input_focus::tab_navigation::TabNavigationPlugin;
 use bevy::prelude::*;
 use bevy_picking::events::PointerRelease;
@@ -12,17 +12,12 @@ use bevy_picking::events::PointerRelease;
 use crate::{
     bevy_combat, bevy_console, bevy_feedback, bevy_gameplay, bevy_input_diagnostics,
     bevy_interactions, bevy_lifecycle, bevy_navigation_bridge, bevy_options, bevy_presentation,
-    bevy_records, bevy_runtime, bevy_spatial, bevy_touch,
+    bevy_records, bevy_runtime, bevy_spatial, bevy_touch, ui_settings,
 };
 
 const WINDOW_TITLE: &str = "The Ashen Chronicle";
 
 pub fn run() {
-    #[cfg(not(target_os = "android"))]
-    let display_mode = desktop_display::load();
-    #[cfg(not(target_os = "android"))]
-    let window_resolution = desktop_display::window_resolution(display_mode);
-    #[cfg(target_os = "android")]
     let window_resolution = (1280, 720);
 
     let mut app = App::new();
@@ -35,14 +30,15 @@ pub fn run() {
             title: WINDOW_TITLE.to_owned(),
             resolution: window_resolution.into(),
             #[cfg(not(target_os = "android"))]
-            mode: desktop_display::window_mode(display_mode),
-            resizable: true,
+            mode: desktop_window::fullscreen_mode(),
+            resizable: false,
             ..default()
         }),
         ..default()
     }));
     app.add_plugins(TabNavigationPlugin);
     bevy_presentation::install(&mut app);
+    ui_settings::install(&mut app);
     bevy_touch::install(&mut app);
     bevy_input_diagnostics::install(&mut app);
     bevy_runtime::install(&mut app);
@@ -57,7 +53,7 @@ pub fn run() {
     bevy_interactions::install(&mut app);
     bevy_feedback::install(&mut app);
     #[cfg(not(target_os = "android"))]
-    app.add_systems(Update, desktop_display::apply_window_icon);
+    app.add_systems(Update, desktop_window::apply_window_icon);
     app.add_systems(Startup, setup).run();
 }
 
@@ -69,18 +65,17 @@ fn setup(mut commands: Commands) {
 #[cfg(not(target_os = "android"))]
 mod tests {
     use super::WINDOW_TITLE;
-    use crate::desktop_display::{self, DisplayMode};
+    use crate::desktop_window;
 
     #[test]
     fn foundation_window_configuration_is_stable() {
         assert_eq!(WINDOW_TITLE, "The Ashen Chronicle");
         assert_eq!(
-            desktop_display::window_resolution(DisplayMode::default()),
-            (1280, 720)
-        );
-        assert_eq!(
-            desktop_display::window_mode(DisplayMode::default()),
-            bevy::window::WindowMode::Windowed
+            desktop_window::fullscreen_mode(),
+            bevy::window::WindowMode::Fullscreen(
+                bevy::window::MonitorSelection::Primary,
+                bevy::window::VideoModeSelection::Current
+            )
         );
     }
 }

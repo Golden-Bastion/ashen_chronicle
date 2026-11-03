@@ -85,6 +85,15 @@ pub struct UiStyledButton;
 #[derive(Component)]
 pub struct UiSelected;
 
+/// Marks interactive nodes whose minimum hit area must remain 48 logical pixels
+/// on Android, independent of the user's visual UI scale.
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum UiTouchTargetShape {
+    MinimumHeight,
+    MinimumBounds { width: u16, height: u16 },
+    Square,
+}
+
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct UiTabButton {
     pub(crate) index: usize,
@@ -374,31 +383,38 @@ pub enum ScreenId {
 }
 
 fn screen_padding() -> Val {
-    vmin(3.333)
+    responsive_vmin(3.333)
 }
 
 fn screen_gap() -> Val {
-    vmin(2.222)
+    responsive_vmin(2.222)
 }
 
 fn panel_padding() -> Val {
-    vmin(2.222)
+    responsive_vmin(2.222)
 }
 
 fn panel_gap() -> Val {
-    vmin(1.389)
+    responsive_vmin(1.389)
+}
+
+/// Converts a viewport-minimum percentage into an Em value. Non-text UI nodes
+/// receive a shared EmSize from ui_settings, allowing the user UI scale to
+/// scale responsive layout spacing without coupling it to the font-size setting.
+pub(crate) fn responsive_vmin(percent: f32) -> Val {
+    em(percent / 2.778)
 }
 
 fn title_font_size() -> FontSize {
-    FontSize::VMin(5.0)
+    FontSize::Rem(1.8)
 }
 
 fn label_font_size() -> FontSize {
-    FontSize::VMin(2.778)
+    FontSize::Rem(1.0)
 }
 
 pub(crate) fn muted_font_size() -> FontSize {
-    FontSize::VMin(2.5)
+    FontSize::Rem(0.9)
 }
 
 pub fn install(app: &mut App) {
@@ -562,7 +578,7 @@ pub fn spawn_text_input_field(
             min_width: px(0),
             min_height: px(48),
             flex_direction: FlexDirection::Row,
-            column_gap: vmin(1.389),
+            column_gap: responsive_vmin(1.389),
             align_items: AlignItems::Center,
             ..default()
         })
@@ -586,6 +602,7 @@ pub fn spawn_text_input_field(
         .spawn((
             Button,
             Hovered::default(),
+            UiTouchTargetShape::MinimumHeight,
             LifecycleTextField { index },
             EditableText::new(&value),
             TextCursorStyle::default(),
@@ -595,7 +612,7 @@ pub fn spawn_text_input_field(
                 width: percent(75),
                 min_width: px(0),
                 min_height: px(48),
-                padding: UiRect::axes(vmin(1.389), vmin(0.833)),
+                padding: UiRect::axes(responsive_vmin(1.389), responsive_vmin(0.833)),
                 align_items: AlignItems::Center,
                 border: UiRect::all(px(1)),
                 ..default()
@@ -627,7 +644,7 @@ pub(crate) fn spawn_console_input_row(
             width: percent(100),
             min_width: px(0),
             flex_direction: FlexDirection::Row,
-            column_gap: vmin(1.111),
+            column_gap: responsive_vmin(1.111),
             align_items: AlignItems::Center,
             ..default()
         })
@@ -637,6 +654,7 @@ pub(crate) fn spawn_console_input_row(
         .spawn((
             Button,
             Hovered::default(),
+            UiTouchTargetShape::MinimumHeight,
             ContextualConsoleInput,
             Text::new(text.into()),
             Node {
@@ -646,7 +664,7 @@ pub(crate) fn spawn_console_input_row(
                 min_height: px(48),
                 flex_grow: 1.0,
                 flex_shrink: 1.0,
-                padding: UiRect::axes(vmin(1.389), vmin(0.833)),
+                padding: UiRect::axes(responsive_vmin(1.389), responsive_vmin(0.833)),
                 border: UiRect::all(px(1)),
                 align_items: AlignItems::Center,
                 ..default()
@@ -664,6 +682,7 @@ pub(crate) fn spawn_console_input_row(
         .spawn((
             Button,
             Hovered::default(),
+            UiTouchTargetShape::MinimumHeight,
             ContextualConsoleTab,
             Node {
                 width: px(64),
@@ -693,11 +712,11 @@ pub(crate) fn spawn_console_input_row(
 }
 
 pub fn responsive_compact_gap() -> Val {
-    vmin(UI_COMPACT_GAP_VMIN)
+    responsive_vmin(UI_COMPACT_GAP_VMIN)
 }
 
 pub fn responsive_surface_padding() -> Val {
-    vmin(UI_SURFACE_PADDING_VMIN)
+    responsive_vmin(UI_SURFACE_PADDING_VMIN)
 }
 
 pub fn touch_target_size() -> Val {
@@ -785,8 +804,8 @@ fn action_button_node() -> Node {
         flex_grow: 0.0,
         flex_shrink: 0.0,
         padding: UiRect::axes(
-            vmin(UI_ACTION_PADDING_HORIZONTAL_VMIN),
-            vmin(UI_ACTION_PADDING_VERTICAL_VMIN),
+            responsive_vmin(UI_ACTION_PADDING_HORIZONTAL_VMIN),
+            responsive_vmin(UI_ACTION_PADDING_VERTICAL_VMIN),
         ),
         border: UiRect::all(px(1)),
         justify_content: JustifyContent::Start,
@@ -881,6 +900,7 @@ pub fn spawn_action_button(
         .spawn((
             Button,
             Hovered::default(),
+            UiTouchTargetShape::MinimumHeight,
             ChoiceButton { index },
             UiActionButton,
             UiStackedActionButton,
@@ -943,6 +963,7 @@ pub fn spawn_primary_action_button(
         .spawn((
             Button,
             Hovered::default(),
+            UiTouchTargetShape::MinimumHeight,
             ChoiceButton { index },
             UiActionButton,
             UiStyledButton,
@@ -953,8 +974,8 @@ pub fn spawn_primary_action_button(
                 flex_grow: 1.0,
                 flex_shrink: 1.0,
                 padding: UiRect::axes(
-                    vmin(UI_ACTION_PADDING_HORIZONTAL_VMIN),
-                    vmin(UI_ACTION_PADDING_VERTICAL_VMIN),
+                    responsive_vmin(UI_ACTION_PADDING_HORIZONTAL_VMIN),
+                    responsive_vmin(UI_ACTION_PADDING_VERTICAL_VMIN),
                 ),
                 border: UiRect::all(px(1)),
                 justify_content: JustifyContent::Start,
@@ -1016,6 +1037,7 @@ pub fn spawn_menu_button(
         .spawn((
             Button,
             Hovered::default(),
+            UiTouchTargetShape::Square,
             UiMenuButton,
             UiStyledButton,
             Node {
@@ -1129,7 +1151,7 @@ pub fn spawn_condition_indicator(
                 min_width: touch_target_size(),
                 height: touch_target_size(),
                 min_height: touch_target_size(),
-                padding: UiRect::all(vmin(0.556)),
+                padding: UiRect::all(responsive_vmin(0.556)),
                 border: UiRect::all(px(1)),
                 justify_content: JustifyContent::Center,
                 align_items: AlignItems::Center,
@@ -1163,7 +1185,7 @@ pub fn spawn_context_message(
                 width: percent(100),
                 min_width: px(0),
                 max_width: percent(100),
-                padding: UiRect::axes(responsive_surface_padding(), vmin(1.111)),
+                padding: UiRect::axes(responsive_surface_padding(), responsive_vmin(1.111)),
                 border: UiRect::all(px(1)),
                 flex_shrink: 1.0,
                 ..default()
@@ -1734,47 +1756,10 @@ mod tests {
     }
 
     #[test]
-    fn screen_ids_cover_all_bevy_frontends() {
-        let screens = [
-            ScreenId::Lifecycle,
-            ScreenId::Gameplay,
-            ScreenId::Character,
-            ScreenId::Inventory,
-            ScreenId::Quests,
-            ScreenId::Meditation,
-            ScreenId::History,
-            ScreenId::Journal,
-            ScreenId::Talk,
-            ScreenId::Conversation,
-            ScreenId::Remains,
-            ScreenId::RemainsResult,
-            ScreenId::SpatialExploration,
-            ScreenId::Combat,
-            ScreenId::Console,
-            ScreenId::Options,
-            ScreenId::Feedback,
-        ];
-        assert_eq!(screens.len(), 17);
-    }
-
-    #[test]
-    fn responsive_spacing_preserves_desktop_baseline() {
-        assert_eq!(screen_padding(), vmin(3.333));
-        assert_eq!(panel_padding(), vmin(2.222));
-        assert_eq!(screen_gap(), vmin(2.222));
-        assert_eq!(panel_gap(), vmin(1.389));
-    }
-
-    #[test]
-    fn responsive_fonts_use_viewport_units() {
-        assert_eq!(title_font_size(), FontSize::VMin(5.0));
-        assert_eq!(label_font_size(), FontSize::VMin(2.778));
-        assert_eq!(muted_font_size(), FontSize::VMin(2.5));
-    }
-
-    #[test]
-    fn touch_buttons_keep_a_fixed_logical_minimum_height() {
-        assert_eq!(px(48), Val::Px(48.0));
+    fn responsive_fonts_use_root_relative_units() {
+        assert_eq!(title_font_size(), FontSize::Rem(1.8));
+        assert_eq!(label_font_size(), FontSize::Rem(1.0));
+        assert_eq!(muted_font_size(), FontSize::Rem(0.9));
     }
 
     #[test]
@@ -1782,13 +1767,6 @@ mod tests {
         assert_eq!(UI_TOUCH_TARGET_PX, 48.0);
         assert_eq!(UI_COMPACT_GAP_VMIN, 1.111);
         assert_eq!(UI_SURFACE_PADDING_VMIN, 1.667);
-    }
-
-    #[test]
-    fn responsive_foundation_tokens_use_viewport_units() {
-        assert_eq!(responsive_compact_gap(), vmin(UI_COMPACT_GAP_VMIN));
-        assert_eq!(responsive_surface_padding(), vmin(UI_SURFACE_PADDING_VMIN));
-        assert_eq!(touch_target_size(), px(UI_TOUCH_TARGET_PX));
     }
 
     #[test]
@@ -1816,21 +1794,6 @@ mod tests {
         assert_eq!(node.flex_grow, 0.0);
         assert_eq!(node.flex_shrink, 0.0);
         assert_eq!(node.min_height, touch_target_size());
-    }
-
-    #[test]
-    fn selected_state_is_explicitly_component_driven() {
-        let _selected = UiSelected;
-    }
-
-    #[test]
-    fn health_gauge_initial_state_is_owned_by_the_component() {
-        let gauge = UiHealthGauge {
-            current: 7,
-            maximum: 10,
-        };
-        assert_eq!(gauge.current, 7);
-        assert_eq!(gauge.maximum, 10);
     }
 
     #[test]

@@ -328,6 +328,7 @@ fn spawn_console_close_button(commands: &mut Commands, root: Entity) {
         .spawn((
             Button,
             Hovered::default(),
+            bevy_presentation::UiTouchTargetShape::MinimumHeight,
             ConsoleCloseButton,
             Node {
                 position_type: PositionType::Absolute,

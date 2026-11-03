@@ -89,6 +89,8 @@ fn suppress_touch_menu_press(
     }
 }
 
+// A normal tap on the gameplay pause button opens the pause menu; holding it
+// for 650 ms without dragging opens the developer console on touchscreens.
 fn should_open_developer_console(elapsed_secs: f32, started_at: f32, dragging: bool) -> bool {
     !dragging && elapsed_secs - started_at >= TOUCH_MENU_LONG_PRESS_SECS
 }

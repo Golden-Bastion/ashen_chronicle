@@ -774,7 +774,7 @@ fn render_spatial_screen(
                 height: percent(100),
                 min_width: px(0),
                 min_height: px(0),
-                padding: UiRect::all(vmin(2.0)),
+                padding: UiRect::all(bevy_presentation::responsive_vmin(2.0)),
                 flex_direction: FlexDirection::Column,
                 row_gap: px(8),
                 ..default()
@@ -1059,6 +1059,10 @@ fn spawn_control(
     let mut entity = commands.spawn((
         Button,
         Hovered::default(),
+        bevy_presentation::UiTouchTargetShape::MinimumBounds {
+            width: 52,
+            height: 48,
+        },
         SpatialControlButton,
         action,
         Node {
@@ -1084,7 +1088,7 @@ fn spawn_control(
     let text = commands
         .spawn((
             Text::new(label.into()),
-            TextFont::from_font_size(FontSize::VMin(2.5)),
+            TextFont::from_font_size(FontSize::Rem(0.9)),
             TextColor(bevy_presentation::THEME_TEXT),
         ))
         .id();
@@ -1097,7 +1101,7 @@ fn spawn_label(commands: &mut Commands, parent: Entity, label: impl Into<String>
     let label = commands
         .spawn((
             Text::new(label.into()),
-            TextFont::from_font_size(FontSize::VMin(2.5)),
+            TextFont::from_font_size(FontSize::Rem(0.9)),
             TextColor(bevy_presentation::THEME_TEXT),
         ))
         .id();
@@ -1108,7 +1112,7 @@ fn spawn_compact_label(commands: &mut Commands, parent: Entity, label: impl Into
     let label = commands
         .spawn((
             Text::new(label.into()),
-            TextFont::from_font_size(FontSize::VMin(1.8)),
+            TextFont::from_font_size(FontSize::Rem(0.648)),
             TextColor(bevy_presentation::THEME_MUTED),
             Node {
                 width: percent(100),

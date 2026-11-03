@@ -16,7 +16,7 @@ mod bevy_spatial;
 mod bevy_touch;
 mod content;
 #[cfg(not(target_os = "android"))]
-mod desktop_display;
+mod desktop_window;
 mod events;
 mod game;
 mod game_paths;
@@ -33,6 +33,7 @@ pub mod procedural_opportunities;
 pub mod procedural_relationships;
 pub mod rng;
 pub mod spatial;
+mod ui_settings;
 
 pub fn run() {
     if let Err(error) = game_paths::GamePaths::initialize() {
