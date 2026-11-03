@@ -774,7 +774,7 @@ fn render_spatial_screen(
                 height: percent(100),
                 min_width: px(0),
                 min_height: px(0),
-                padding: UiRect::all(vmin(2.0)),
+                padding: UiRect::all(bevy_presentation::responsive_vmin(2.0)),
                 flex_direction: FlexDirection::Column,
                 row_gap: px(8),
                 ..default()

@@ -749,7 +749,7 @@ fn render_interface_tab(
     bevy_presentation::spawn_muted_label(
         commands,
         panel,
-        "Adjust fixed-size interface elements and text independently. Changes apply immediately and are saved on this device.",
+        "Adjust interface layout and text independently. Changes apply immediately and are saved on this device.",
     );
 
     bevy_presentation::spawn_muted_label(

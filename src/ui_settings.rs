@@ -129,6 +129,7 @@ fn apply_ui_settings(
     window: Single<&Window, With<PrimaryWindow>>,
     mut ui_scale: ResMut<UiScale>,
     mut rem_size: ResMut<RemSize>,
+    mut em_sizes: Query<&mut EmSize, Without<TextFont>>,
 ) {
     let target_ui_scale = settings.ui_scale();
     if (ui_scale.0 - target_ui_scale).abs() > f32::EPSILON {
@@ -136,9 +137,17 @@ fn apply_ui_settings(
     }
 
     let viewport_min = window.width().min(window.height());
-    let target_rem_size = viewport_min * BASE_REM_VMIN_PERCENT * settings.font_scale();
+    let base_viewport_em = viewport_min * BASE_REM_VMIN_PERCENT;
+    let target_rem_size = base_viewport_em * settings.font_scale();
     if (rem_size.0 - target_rem_size).abs() > 0.01 {
         rem_size.0 = target_rem_size;
+    }
+
+    let target_em_size = base_viewport_em * settings.ui_scale();
+    for mut em_size in &mut em_sizes {
+        if (em_size.0 - target_em_size).abs() > 0.01 {
+            em_size.0 = target_em_size;
+        }
     }
 }
 

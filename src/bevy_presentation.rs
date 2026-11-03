@@ -374,19 +374,26 @@ pub enum ScreenId {
 }
 
 fn screen_padding() -> Val {
-    vmin(3.333)
+    responsive_vmin(3.333)
 }
 
 fn screen_gap() -> Val {
-    vmin(2.222)
+    responsive_vmin(2.222)
 }
 
 fn panel_padding() -> Val {
-    vmin(2.222)
+    responsive_vmin(2.222)
 }
 
 fn panel_gap() -> Val {
-    vmin(1.389)
+    responsive_vmin(1.389)
+}
+
+/// Converts a viewport-minimum percentage into an Em value. Non-text UI nodes
+/// receive a shared EmSize from ui_settings, allowing the user UI scale to
+/// scale responsive layout spacing without coupling it to the font-size setting.
+pub(crate) fn responsive_vmin(percent: f32) -> Val {
+    em(percent / 2.778)
 }
 
 fn title_font_size() -> FontSize {
@@ -562,7 +569,7 @@ pub fn spawn_text_input_field(
             min_width: px(0),
             min_height: px(48),
             flex_direction: FlexDirection::Row,
-            column_gap: vmin(1.389),
+            column_gap: responsive_vmin(1.389),
             align_items: AlignItems::Center,
             ..default()
         })
@@ -595,7 +602,7 @@ pub fn spawn_text_input_field(
                 width: percent(75),
                 min_width: px(0),
                 min_height: px(48),
-                padding: UiRect::axes(vmin(1.389), vmin(0.833)),
+                padding: UiRect::axes(responsive_vmin(1.389), responsive_vmin(0.833)),
                 align_items: AlignItems::Center,
                 border: UiRect::all(px(1)),
                 ..default()
@@ -627,7 +634,7 @@ pub(crate) fn spawn_console_input_row(
             width: percent(100),
             min_width: px(0),
             flex_direction: FlexDirection::Row,
-            column_gap: vmin(1.111),
+            column_gap: responsive_vmin(1.111),
             align_items: AlignItems::Center,
             ..default()
         })
@@ -646,7 +653,7 @@ pub(crate) fn spawn_console_input_row(
                 min_height: px(48),
                 flex_grow: 1.0,
                 flex_shrink: 1.0,
-                padding: UiRect::axes(vmin(1.389), vmin(0.833)),
+                padding: UiRect::axes(responsive_vmin(1.389), responsive_vmin(0.833)),
                 border: UiRect::all(px(1)),
                 align_items: AlignItems::Center,
                 ..default()
@@ -693,11 +700,11 @@ pub(crate) fn spawn_console_input_row(
 }
 
 pub fn responsive_compact_gap() -> Val {
-    vmin(UI_COMPACT_GAP_VMIN)
+    responsive_vmin(UI_COMPACT_GAP_VMIN)
 }
 
 pub fn responsive_surface_padding() -> Val {
-    vmin(UI_SURFACE_PADDING_VMIN)
+    responsive_vmin(UI_SURFACE_PADDING_VMIN)
 }
 
 pub fn touch_target_size() -> Val {
@@ -785,8 +792,8 @@ fn action_button_node() -> Node {
         flex_grow: 0.0,
         flex_shrink: 0.0,
         padding: UiRect::axes(
-            vmin(UI_ACTION_PADDING_HORIZONTAL_VMIN),
-            vmin(UI_ACTION_PADDING_VERTICAL_VMIN),
+            responsive_vmin(UI_ACTION_PADDING_HORIZONTAL_VMIN),
+            responsive_vmin(UI_ACTION_PADDING_VERTICAL_VMIN),
         ),
         border: UiRect::all(px(1)),
         justify_content: JustifyContent::Start,
@@ -953,8 +960,8 @@ pub fn spawn_primary_action_button(
                 flex_grow: 1.0,
                 flex_shrink: 1.0,
                 padding: UiRect::axes(
-                    vmin(UI_ACTION_PADDING_HORIZONTAL_VMIN),
-                    vmin(UI_ACTION_PADDING_VERTICAL_VMIN),
+                    responsive_vmin(UI_ACTION_PADDING_HORIZONTAL_VMIN),
+                    responsive_vmin(UI_ACTION_PADDING_VERTICAL_VMIN),
                 ),
                 border: UiRect::all(px(1)),
                 justify_content: JustifyContent::Start,
@@ -1129,7 +1136,7 @@ pub fn spawn_condition_indicator(
                 min_width: touch_target_size(),
                 height: touch_target_size(),
                 min_height: touch_target_size(),
-                padding: UiRect::all(vmin(0.556)),
+                padding: UiRect::all(responsive_vmin(0.556)),
                 border: UiRect::all(px(1)),
                 justify_content: JustifyContent::Center,
                 align_items: AlignItems::Center,
@@ -1163,7 +1170,7 @@ pub fn spawn_context_message(
                 width: percent(100),
                 min_width: px(0),
                 max_width: percent(100),
-                padding: UiRect::axes(responsive_surface_padding(), vmin(1.111)),
+                padding: UiRect::axes(responsive_surface_padding(), responsive_vmin(1.111)),
                 border: UiRect::all(px(1)),
                 flex_shrink: 1.0,
                 ..default()
@@ -1759,10 +1766,10 @@ mod tests {
 
     #[test]
     fn responsive_spacing_preserves_desktop_baseline() {
-        assert_eq!(screen_padding(), vmin(3.333));
-        assert_eq!(panel_padding(), vmin(2.222));
-        assert_eq!(screen_gap(), vmin(2.222));
-        assert_eq!(panel_gap(), vmin(1.389));
+        assert_eq!(screen_padding(), responsive_vmin(3.333));
+        assert_eq!(panel_padding(), responsive_vmin(2.222));
+        assert_eq!(screen_gap(), responsive_vmin(2.222));
+        assert_eq!(panel_gap(), responsive_vmin(1.389));
     }
 
     #[test]
@@ -1786,8 +1793,8 @@ mod tests {
 
     #[test]
     fn responsive_foundation_tokens_use_viewport_units() {
-        assert_eq!(responsive_compact_gap(), vmin(UI_COMPACT_GAP_VMIN));
-        assert_eq!(responsive_surface_padding(), vmin(UI_SURFACE_PADDING_VMIN));
+        assert_eq!(responsive_compact_gap(), responsive_vmin(UI_COMPACT_GAP_VMIN));
+        assert_eq!(responsive_surface_padding(), responsive_vmin(UI_SURFACE_PADDING_VMIN));
         assert_eq!(touch_target_size(), px(UI_TOUCH_TARGET_PX));
     }
 
