@@ -10,6 +10,8 @@ The roadmap tracks current and upcoming development. Detailed completed mileston
 
 **v0.52.x — location banner prototype complete.** Ashen Gate uses a full-width pixel-art PNG banner with nearest-neighbor sampling; other locations and banner-load failures retain the ASCII fallback.
 
+**v0.52.x — shared presentation preferences.** Desktop now launches fullscreen rather than offering windowed-resolution presets. Android retains immersive landscape presentation. Both platforms expose persisted UI-scale and font-size controls in Options. The touchscreen developer-console shortcut is a long-press on the gameplay Pause button.
+
 ## Active milestone
 
 **v0.52.x — Procedural spatial exploration prototype** ([tracking issue #353](https://github.com/right-ward/ashen_chronicle/issues/353))

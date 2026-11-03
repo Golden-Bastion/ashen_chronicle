@@ -4,9 +4,12 @@
 //! frontend-independent systems and Bevy adapters.
 
 #[cfg(not(target_os = "android"))]
-use crate::desktop_display;
+use crate::desktop_window;
 use bevy::input_focus::tab_navigation::TabNavigationPlugin;
 use bevy::prelude::*;
+use bevy::ui::{RemSize, UiScale};
+#[cfg(not(target_os = "android"))]
+use bevy::window::{MonitorSelection, VideoModeSelection, WindowMode};
 use bevy_picking::events::PointerRelease;
 
 use crate::{
@@ -17,14 +20,13 @@ use crate::{
 
 const WINDOW_TITLE: &str = "The Ashen Chronicle";
 
-pub fn run() {
-    #[cfg(not(target_os = "android"))]
-    let display_mode = desktop_display::load();
-    #[cfg(not(target_os = "android"))]
-    let window_resolution = desktop_display::window_resolution(display_mode);
-    #[cfg(target_os = "android")]
-    let window_resolution = (1280, 720);
+#[cfg(not(target_os = "android"))]
+fn desktop_window_mode() -> WindowMode {
+    WindowMode::Fullscreen(MonitorSelection::Primary, VideoModeSelection::Current)
+}
 
+pub fn run() {
+    let ui_settings = crate::ui_settings::UiSettings::load();
     let mut app = App::new();
     // EditableText reads PointerRelease even when no input-picking backend is
     // available. Register its message storage explicitly; touch gestures are
@@ -33,14 +35,17 @@ pub fn run() {
     app.add_plugins(DefaultPlugins.set(WindowPlugin {
         primary_window: Some(Window {
             title: WINDOW_TITLE.to_owned(),
-            resolution: window_resolution.into(),
+            resolution: (1280, 720).into(),
             #[cfg(not(target_os = "android"))]
-            mode: desktop_display::window_mode(display_mode),
+            mode: desktop_window_mode(),
             resizable: true,
             ..default()
         }),
         ..default()
     }));
+    app.insert_resource(UiScale(ui_settings.ui_scale()));
+    app.insert_resource(RemSize(ui_settings.rem_size_px()));
+    app.insert_resource(ui_settings);
     app.add_plugins(TabNavigationPlugin);
     bevy_presentation::install(&mut app);
     bevy_touch::install(&mut app);
@@ -57,7 +62,7 @@ pub fn run() {
     bevy_interactions::install(&mut app);
     bevy_feedback::install(&mut app);
     #[cfg(not(target_os = "android"))]
-    app.add_systems(Update, desktop_display::apply_window_icon);
+    app.add_systems(Update, desktop_window::apply_window_icon);
     app.add_systems(Startup, setup).run();
 }
 
@@ -69,18 +74,14 @@ fn setup(mut commands: Commands) {
 #[cfg(not(target_os = "android"))]
 mod tests {
     use super::WINDOW_TITLE;
-    use crate::desktop_display::{self, DisplayMode};
+    use bevy::window::{MonitorSelection, VideoModeSelection, WindowMode};
 
     #[test]
     fn foundation_window_configuration_is_stable() {
         assert_eq!(WINDOW_TITLE, "The Ashen Chronicle");
         assert_eq!(
-            desktop_display::window_resolution(DisplayMode::default()),
-            (1280, 720)
-        );
-        assert_eq!(
-            desktop_display::window_mode(DisplayMode::default()),
-            bevy::window::WindowMode::Windowed
+            desktop_window_mode(),
+            WindowMode::Fullscreen(MonitorSelection::Primary, VideoModeSelection::Current)
         );
     }
 }

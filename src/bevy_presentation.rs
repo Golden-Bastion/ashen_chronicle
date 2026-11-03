@@ -390,15 +390,15 @@ fn panel_gap() -> Val {
 }
 
 fn title_font_size() -> FontSize {
-    FontSize::VMin(5.0)
+    FontSize::Rem(1.8)
 }
 
 fn label_font_size() -> FontSize {
-    FontSize::VMin(2.778)
+    FontSize::Rem(1.0)
 }
 
 pub(crate) fn muted_font_size() -> FontSize {
-    FontSize::VMin(2.5)
+    FontSize::Rem(0.9)
 }
 
 pub fn install(app: &mut App) {
@@ -1766,10 +1766,10 @@ mod tests {
     }
 
     #[test]
-    fn responsive_fonts_use_viewport_units() {
-        assert_eq!(title_font_size(), FontSize::VMin(5.0));
-        assert_eq!(label_font_size(), FontSize::VMin(2.778));
-        assert_eq!(muted_font_size(), FontSize::VMin(2.5));
+    fn responsive_fonts_use_rem_units() {
+        assert_eq!(title_font_size(), FontSize::Rem(1.8));
+        assert_eq!(label_font_size(), FontSize::Rem(1.0));
+        assert_eq!(muted_font_size(), FontSize::Rem(0.9));
     }
 
     #[test]

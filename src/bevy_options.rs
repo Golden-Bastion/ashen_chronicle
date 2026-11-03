@@ -11,8 +11,8 @@ use crate::bevy_lifecycle::{LifecyclePhase, LifecycleState};
 use crate::bevy_presentation::{
     self, BevyScreenRoot, GameplayInputQueue, NavigationState, ScreenId, UiSelected,
 };
-#[cfg(not(target_os = "android"))]
-use crate::desktop_display;
+use crate::ui_settings::UiSettings;
+use bevy::ui::{RemSize, UiScale};
 use crate::input::InputEvent;
 use crate::mod_manager::InstalledMod;
 
@@ -33,10 +33,6 @@ pub(crate) struct OptionsState {
     mods: Vec<InstalledMod>,
     pending_restart: bool,
     pending_remove_id: Option<String>,
-    #[cfg(not(target_os = "android"))]
-    display_mode: desktop_display::DisplayMode,
-    #[cfg(not(target_os = "android"))]
-    pending_display_mode: Option<desktop_display::DisplayMode>,
     #[cfg(target_os = "android")]
     last_storage_poll: f32,
     #[cfg(target_os = "android")]
@@ -55,10 +51,6 @@ impl Default for OptionsState {
             mods: Vec::new(),
             pending_restart: false,
             pending_remove_id: None,
-            #[cfg(not(target_os = "android"))]
-            display_mode: desktop_display::load(),
-            #[cfg(not(target_os = "android"))]
-            pending_display_mode: None,
             #[cfg(target_os = "android")]
             last_storage_poll: 0.0,
             #[cfg(target_os = "android")]
@@ -74,7 +66,7 @@ pub(crate) fn install(app: &mut App) {
             sync_screen,
             refresh_storage,
             options_input,
-            apply_display_mode,
+            apply_ui_settings,
             render_if_active,
         )
             .chain(),
@@ -98,11 +90,6 @@ fn sync_screen(
         options.message = None;
         options.pending_remove_id = None;
         refresh_catalogs(&mut options);
-        #[cfg(not(target_os = "android"))]
-        {
-            options.display_mode = desktop_display::load();
-            options.pending_display_mode = None;
-        }
         #[cfg(target_os = "android")]
         {
             options.last_storage_poll = 0.0;
@@ -215,6 +202,7 @@ fn options_input(
     mut lifecycle: ResMut<LifecycleState>,
     mut navigation: ResMut<NavigationState>,
     mut options: ResMut<OptionsState>,
+    mut ui_settings: ResMut<UiSettings>,
     gameplay: Res<GameplayState>,
     mut input_queue: ResMut<GameplayInputQueue>,
 ) {
@@ -251,31 +239,24 @@ fn options_input(
                 options.selected = 0;
                 options.message = None;
                 options.pending_remove_id = None;
-                #[cfg(not(target_os = "android"))]
-                {
-                    options.pending_display_mode = None;
-                }
             }
             InputEvent::Tab => {
                 options.tab = (options.tab + 1) % 3;
                 options.selected = 0;
                 options.message = None;
                 options.pending_remove_id = None;
-                #[cfg(not(target_os = "android"))]
-                {
-                    options.pending_display_mode = None;
-                }
             }
             InputEvent::Confirm => match options.tab {
                 0 => {
                     activate_saves_action(&mut options, &mut lifecycle, &mut navigation, &gameplay)
                 }
                 1 => activate_mods_action(&mut options, &mut lifecycle, &mut navigation, &gameplay),
-                2 => activate_display_action(
+                2 => activate_interface_action(
                     &mut options,
                     &mut lifecycle,
                     &mut navigation,
                     &gameplay,
+                    &mut ui_settings,
                 ),
                 _ => {}
             },
@@ -293,16 +274,7 @@ fn options_selection_end(options: &OptionsState) -> usize {
     match options.tab {
         0 => options.saves.len() + 1,
         1 => mod_action_start_index(options.mods.len()),
-        2 => {
-            #[cfg(not(target_os = "android"))]
-            {
-                3
-            }
-            #[cfg(target_os = "android")]
-            {
-                0
-            }
-        }
+        2 => 5,
         _ => 0,
     }
 }
@@ -385,23 +357,31 @@ fn activate_mods_action(
     }
 }
 
-fn activate_display_action(
+fn activate_interface_action(
     options: &mut OptionsState,
     lifecycle: &mut LifecycleState,
     navigation: &mut NavigationState,
     gameplay: &GameplayState,
+    settings: &mut UiSettings,
 ) {
-    #[cfg(not(target_os = "android"))]
-    match options.selected {
-        0 => select_display_mode(options, desktop_display::DisplayMode::Fullscreen),
-        1 => select_display_mode(options, desktop_display::DisplayMode::Windowed1920x1080),
-        2 => select_display_mode(options, desktop_display::DisplayMode::Windowed1280x720),
-        3 => close_options(lifecycle, navigation, options, gameplay),
-        _ => {}
-    }
-    #[cfg(target_os = "android")]
-    if options.selected == 0 {
-        close_options(lifecycle, navigation, options, gameplay);
+    let changed = match options.selected {
+        0 => settings.adjust_ui_scale(-1),
+        1 => settings.adjust_ui_scale(1),
+        2 => settings.adjust_font_scale(-1),
+        3 => settings.adjust_font_scale(1),
+        4 => settings.reset(),
+        5 => {
+            close_options(lifecycle, navigation, options, gameplay);
+            false
+        }
+        _ => false,
+    };
+
+    if changed {
+        options.message = match settings.save() {
+            Ok(()) => None,
+            Err(error) => Some(format!("Could not save interface settings: {error}")),
+        };
     }
 }
 
@@ -508,33 +488,17 @@ fn import_mod(options: &mut OptionsState) {
     }
 }
 
-#[cfg(not(target_os = "android"))]
-fn select_display_mode(options: &mut OptionsState, mode: desktop_display::DisplayMode) {
-    options.display_mode = mode;
-    options.pending_display_mode = Some(mode);
-    match desktop_display::save(mode) {
-        Ok(()) => options.message = Some(format!("Display mode: {}.", mode.label())),
-        Err(error) => {
-            options.message = Some(format!(
-                "Display mode applied, but could not be saved: {error}"
-            ))
-        }
-    }
-}
-
-#[cfg(not(target_os = "android"))]
-fn apply_display_mode(
-    mut options: ResMut<OptionsState>,
-    mut window: Single<&mut Window, With<bevy::window::PrimaryWindow>>,
+fn apply_ui_settings(
+    settings: Res<UiSettings>,
+    mut ui_scale: ResMut<UiScale>,
+    mut rem_size: ResMut<RemSize>,
 ) {
-    let Some(mode) = options.pending_display_mode.take() else {
+    if !settings.is_changed() {
         return;
-    };
-    desktop_display::apply(&mut window, mode);
+    }
+    ui_scale.0 = settings.ui_scale();
+    rem_size.0 = settings.rem_size_px();
 }
-
-#[cfg(target_os = "android")]
-fn apply_display_mode() {}
 
 fn close_options(
     lifecycle: &mut LifecycleState,
@@ -550,10 +514,6 @@ fn close_options(
     options.message = None;
     options.pending_remove_id = None;
     options.dirty = true;
-    #[cfg(not(target_os = "android"))]
-    {
-        options.pending_display_mode = None;
-    }
 
     match return_screen {
         Some(ScreenId::Lifecycle) => {
@@ -573,6 +533,7 @@ fn render_if_active(
     lifecycle: Res<LifecycleState>,
     navigation: Res<NavigationState>,
     mut options: ResMut<OptionsState>,
+    ui_settings: Res<UiSettings>,
     roots: Query<Entity, With<BevyScreenRoot>>,
 ) {
     if !matches!(
@@ -615,7 +576,7 @@ fn render_if_active(
         .id();
     commands.entity(panel).add_child(tab_strip);
     commands.entity(tab_strip).with_children(|tabs| {
-        for (index, label) in [(0, "Saves"), (1, "Mods"), (2, "Display")] {
+        for (index, label) in [(0, "Saves"), (1, "Mods"), (2, "Interface")] {
             let mut tab = tabs.spawn((
                 Button,
                 Hovered::default(),
@@ -649,7 +610,7 @@ fn render_if_active(
     match options.tab {
         0 => render_saves_tab(&mut commands, panel, &options),
         1 => render_mods_tab(&mut commands, panel, &options),
-        2 => render_display_tab(&mut commands, panel, &options),
+        2 => render_interface_tab(&mut commands, panel, &options, &ui_settings),
         _ => {}
     }
 
@@ -781,59 +742,46 @@ fn spawn_option_button(
     }
 }
 
-fn render_display_tab(commands: &mut Commands, panel: Entity, options: &OptionsState) {
-    bevy_presentation::spawn_label(commands, panel, "DISPLAY");
-    #[cfg(not(target_os = "android"))]
-    {
-        bevy_presentation::spawn_muted_label(
-            commands,
-            panel,
-            "Choose how the desktop game window is displayed. Windowed presets remain freely resizable.",
-        );
-        let modes = [
-            (desktop_display::DisplayMode::Fullscreen, "Fullscreen"),
-            (
-                desktop_display::DisplayMode::Windowed1920x1080,
-                "Windowed - 1920 x 1080",
-            ),
-            (
-                desktop_display::DisplayMode::Windowed1280x720,
-                "Windowed - 1280 x 720",
-            ),
-        ];
-        for (index, (mode, label)) in modes.into_iter().enumerate() {
-            let button = bevy_presentation::spawn_action_button(
-                commands,
-                panel,
-                index,
-                "display",
-                if options.display_mode == mode {
-                    format!("{label} (current)")
-                } else {
-                    label.to_string()
-                },
-            );
-            if options.selected == index {
-                commands.entity(button).insert(UiSelected);
-            }
-        }
-        let back = bevy_presentation::spawn_action_button(commands, panel, 3, "back", "Back");
-        if options.selected == 3 {
-            commands.entity(back).insert(UiSelected);
-        }
-    }
-    #[cfg(target_os = "android")]
-    {
-        bevy_presentation::spawn_muted_label(
-            commands,
-            panel,
-            "Display settings are not available on Android yet.",
-        );
-        let back = bevy_presentation::spawn_action_button(commands, panel, 0, "back", "Back");
-        if options.selected == 0 {
-            commands.entity(back).insert(UiSelected);
-        }
-    }
+fn render_interface_tab(
+    commands: &mut Commands,
+    panel: Entity,
+    options: &OptionsState,
+    settings: &UiSettings,
+) {
+    bevy_presentation::spawn_label(commands, panel, "INTERFACE");
+    bevy_presentation::spawn_muted_label(
+        commands,
+        panel,
+        "Adjust fixed-size interface elements and text independently. Changes apply immediately and are saved on this device.",
+    );
+
+    spawn_interface_scale_row(commands, panel, "UI SCALE", settings.ui_scale(), 0, 1, options);
+    spawn_interface_scale_row(commands, panel, "FONT SIZE", settings.font_scale(), 2, 3, options);
+
+    spawn_option_button(commands, panel, 4, "Reset defaults", options.selected == 4);
+    spawn_option_button(commands, panel, 5, "Back", options.selected == 5);
+}
+
+fn spawn_interface_scale_row(
+    commands: &mut Commands,
+    panel: Entity,
+    label: &str,
+    value: f32,
+    decrease_index: usize,
+    increase_index: usize,
+    options: &OptionsState,
+) {
+    bevy_presentation::spawn_muted_label(commands, panel, format!("{label}: {:.0}%", value * 100.0));
+    let row = commands.spawn(Node {
+        width: percent(100),
+        flex_direction: FlexDirection::Row,
+        column_gap: bevy_presentation::responsive_compact_gap(),
+        align_items: AlignItems::Center,
+        ..default()
+    }).id();
+    commands.entity(panel).add_child(row);
+    spawn_option_button(commands, row, decrease_index, "−", options.selected == decrease_index);
+    spawn_option_button(commands, row, increase_index, "+", options.selected == increase_index);
 }
 
 #[cfg(target_os = "android")]
@@ -917,10 +865,7 @@ mod tests {
         options.tab = 1;
         assert_eq!(options_selection_end(&options), 1); // Install and Back.
         options.tab = 2;
-        #[cfg(not(target_os = "android"))]
-        assert_eq!(options_selection_end(&options), 3);
-        #[cfg(target_os = "android")]
-        assert_eq!(options_selection_end(&options), 0);
+        assert_eq!(options_selection_end(&options), 5);
     }
 
     #[test]

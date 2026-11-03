@@ -111,6 +111,7 @@ fn complete_touch_menu(
         return;
     }
 
+    // On touchscreens, holding the gameplay Pause button opens the developer console.
     if should_open_developer_console(time.elapsed_secs(), active.started_at, active.dragging) {
         state.active = None;
         gameplay_queue

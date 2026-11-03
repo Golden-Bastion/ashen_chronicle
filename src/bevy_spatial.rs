@@ -1084,7 +1084,7 @@ fn spawn_control(
     let text = commands
         .spawn((
             Text::new(label.into()),
-            TextFont::from_font_size(FontSize::VMin(2.5)),
+            TextFont::from_font_size(FontSize::Rem(0.9)),
             TextColor(bevy_presentation::THEME_TEXT),
         ))
         .id();
@@ -1097,7 +1097,7 @@ fn spawn_label(commands: &mut Commands, parent: Entity, label: impl Into<String>
     let label = commands
         .spawn((
             Text::new(label.into()),
-            TextFont::from_font_size(FontSize::VMin(2.5)),
+            TextFont::from_font_size(FontSize::Rem(0.9)),
             TextColor(bevy_presentation::THEME_TEXT),
         ))
         .id();
@@ -1108,7 +1108,7 @@ fn spawn_compact_label(commands: &mut Commands, parent: Entity, label: impl Into
     let label = commands
         .spawn((
             Text::new(label.into()),
-            TextFont::from_font_size(FontSize::VMin(1.8)),
+            TextFont::from_font_size(FontSize::Rem(0.648)),
             TextColor(bevy_presentation::THEME_MUTED),
             Node {
                 width: percent(100),
