@@ -17,12 +17,11 @@ mod bevy_touch;
 mod content;
 #[cfg(not(target_os = "android"))]
 mod desktop_display;
-#[cfg(not(target_os = "android"))]
-mod desktop_storage;
 mod events;
 mod game;
 mod game_paths;
 mod input;
+mod mod_manager;
 mod model;
 mod persistence;
 mod presentation;
@@ -37,8 +36,9 @@ pub mod spatial;
 
 pub fn run() {
     if let Err(error) = game_paths::GamePaths::initialize() {
-        panic!("failed to initialize The Ashen Chronicle game root: {error}");
+        panic!("failed to initialize The Ashen Chronicle game storage: {error}");
     }
+    mod_manager::initialize_active_mods();
     bevy_app::run();
 }
 

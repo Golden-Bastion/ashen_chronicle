@@ -39,9 +39,9 @@ Older saved local maps without `exits` or `props` fields remain deserializable. 
 
 ## Visual assets
 
-The first spatial pixel-art set lives under the selected game's `data/assets/spatial/` directory and includes wood-floor, ash, rubble, and wall-top tiles, separate left/right wall-face sprites, a character sprite, a passage marker, and dedicated pillar/table props. These PNGs are loaded from disk at runtime through the same validated asset loader used for UI icons and mod art; they are not compiled into the executable. Android seeds the selected game folder from bundled defaults and synchronizes its `data/assets/` directory with the chosen shared folder. The wood floor is a first-pass treatment for the Old Shrine prototype, not a claim that every location should use wood.
+The first spatial pixel-art set is packaged as protected base-game assets and includes wood-floor, ash, rubble, and wall-top tiles, separate left/right wall-face sprites, a character sprite, a passage marker, and dedicated pillar/table props. These PNGs are loaded at runtime through the mod-aware asset resolver; they are not a writable global asset collection. A mod can replace a base image by providing the same relative path under its own `assets/` directory. The enabled mod with the highest priority wins, with stable mod ID as the deterministic tie-break. The wood floor is a first-pass treatment for the Old Shrine prototype, not a claim that every location should use wood.
 
-The interface uses named PNG icons from `data/assets/icons/ui/` for actions, menu controls, conditions, records, combat choices, and the sun/moon treatment. Text separators and ordinary labels use simple ASCII punctuation instead of decorative glyphs that may be missing from the default font. Mods may provide their own images under `data/mods/<folder>/assets/` and reference them with `mod:<folder>/<relative-path>.png`.
+The interface uses named PNG icons from the bundled `icons/ui/` collection for actions, menu controls, conditions, records, combat choices, and the sun/moon treatment. Text separators and ordinary labels use simple ASCII punctuation instead of decorative glyphs that may be missing from the default font. Mod-owned assets live under the installed mod's `assets/` directory and can be referenced explicitly with `mod:<manifest-id>/<relative-path>.png`.
 
 ## Spatial HUD
 

@@ -36,15 +36,17 @@ Encode that keystore for the `ANDROID_KEYSTORE_BASE64` secret without adding the
 
 ## Android storage
 
-Android uses the Storage Access Framework rather than `MANAGE_EXTERNAL_STORAGE`. On first launch, the game asks the player to choose or create a folder for `The Ashen Chronicle` using the system folder picker.
+Android stores all active game data in the application's private files directory. Rust resolves that single internal root through the Activity's `getNativeGameRootPath()` method. The game does not request a shared-folder tree permission and does not synchronize data to public storage.
 
-The selected folder permission is persisted by Android. Rust uses an app-scoped filesystem directory for normal `std::fs` access; its path is obtained from the same Android Activity method used by the SAF synchronization code, so both sides operate on the same local working root. The Activity mirrors editable `data/mods`, `data/assets`, and `saves` directories between that local root and the selected shared folder. The bundled `data/base_content.json` remains protected and is not synchronized into user-editable shared storage.
+Bundled base assets and packaged default mods are copied into a protected bundled area within the internal root. Default mods are seeded into the managed mods catalog once, using their manifest IDs as installation directory names. User-installed mods, saves, import staging files, and mod preferences remain private to the app.
 
-Android also keeps a private `config.json` in app data and mirrors that configuration into the selected game folder. When the selected folder already contains a valid matching configuration, it is read back into the private copy. The shared file is a configuration mirror; the SAF permission itself remains private Android state.
+The Options screen uses Android's document picker only for explicit file operations:
 
-When the selected folder contains actual files in its mods, assets, or saves directories, that shared data is imported into the local game root. Empty directory scaffolding and the configuration mirror alone do not count as an existing dataset; an empty folder is initialized from the local game data. Subsequent changes to mods, assets, and saves are synchronized to the selected folder when the Activity pauses or stops.
+- Save import copies the selected document into private staging storage, then Rust validates and installs it without replacing an existing save.
+- Mod import copies the selected ZIP into private staging storage, then Rust validates and installs it into the internal mod catalog.
+- Save export creates a destination document and copies the selected internal save to it.
 
-The selected directory should be the game folder itself (for example, `Documents/The Ashen Chronicle`), not its parent `Documents` directory. The dedicated Options screen can reopen this chooser later to change the selected shared folder.
+The selected document's temporary URI is used for the operation only; no persistent SAF folder permission or background synchronization is retained.
 
 ## Local Android project
 

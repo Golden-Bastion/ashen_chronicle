@@ -1,25 +1,8 @@
 use super::definitions::*;
 use std::collections::HashSet;
-use std::env;
 use std::fs;
 use std::io;
-use std::path::{Path, PathBuf};
-
-const CONTENT_FILE_NAME: &str = "base_content.json";
-const MODS_DIR_NAME: &str = "mods";
-
-#[derive(Debug, Clone)]
-pub struct DataRootCandidate {
-    pub root: PathBuf,
-    pub has_base_content: bool,
-    pub has_mods_directory: bool,
-}
-
-#[derive(Debug, Clone)]
-struct DiscoveredMod {
-    manifest: ModManifest,
-    manifest_path: PathBuf,
-}
+use std::path::{Component, Path, PathBuf};
 
 impl ContentLoadReport {
     fn with_content(content: CampaignContent) -> Self {
@@ -37,220 +20,83 @@ pub fn load_campaign_content() -> CampaignContent {
 
 pub fn load_campaign_content_report() -> ContentLoadReport {
     let mut report = ContentLoadReport::with_content(default_campaign_content());
-    let candidates = data_root_candidates();
-    let Some(root) = select_data_root(&candidates) else {
-        report.warnings.push(
-            "No external data root with base_content.json was found; using embedded base content."
-                .into(),
-        );
-        return report;
-    };
+    let installed = crate::mod_manager::active_mods();
+    let mut pending_mod_events = Vec::new();
 
-    let base_path = root.join(CONTENT_FILE_NAME);
-    match load_content_file(&base_path) {
-        Ok(content) => report.content = content,
-        Err(err) => {
-            report.warnings.push(format!(
-                "Could not load base content from {}: {err}; using embedded base content.",
-                base_path.display()
-            ));
-            return report;
-        }
-    }
-
-    let base_location_names: HashSet<&str> = report
-        .content
-        .world
-        .locations
-        .iter()
-        .map(|entry| entry.name.as_str())
-        .collect();
-    let base_faction_names: HashSet<&str> = report
-        .content
-        .factions
-        .iter()
-        .map(|entry| entry.name.as_str())
-        .collect();
-    let base_events = std::mem::take(&mut report.content.events);
-    let base_event_ids: HashSet<String> =
-        base_events.iter().map(|event| event.id.clone()).collect();
-    report.content.events = filter_valid_events(
-        base_events,
-        &base_location_names,
-        &base_faction_names,
-        &base_event_ids,
-        &HashSet::new(),
-        "base content",
-        &mut report.warnings,
-    );
-
-    let mods_root = root.join(MODS_DIR_NAME);
-    if !mods_root.is_dir() {
-        report
-            .warnings
-            .push(format!("Mods directory not found: {}", mods_root.display()));
-        report.warnings.extend(report.content.validate());
-        return report;
-    }
-
-    let mut discovered_mods = discover_mods(&mods_root, &mut report.warnings);
-    discovered_mods.sort_by(|left, right| {
-        left.manifest
-            .priority
-            .cmp(&right.manifest.priority)
-            .then_with(|| left.manifest.id.cmp(&right.manifest.id))
-    });
-
-    let mut seen_mod_ids = HashSet::new();
-    for discovered in discovered_mods {
-        if !discovered.manifest.enabled || !seen_mod_ids.insert(discovered.manifest.id.clone()) {
-            if discovered.manifest.enabled {
-                report.warnings.push(format!(
-                    "skipping duplicate mod id {}",
-                    discovered.manifest.id
+    for item in installed.iter().filter(|item| item.enabled) {
+        let manifest = item.manifest.clone();
+        // Assets remain active even if this mod's optional content file is invalid.
+        report.loaded_mods.push(manifest.clone());
+        match load_mod_content(&item.directory, &manifest) {
+            Ok(Some(mut mod_content)) => {
+                pending_mod_events.push((
+                    item.priority,
+                    manifest.id.clone(),
+                    std::mem::take(&mut mod_content.events),
                 ));
+                merge_campaign_content(&mut report.content, mod_content);
             }
-            continue;
-        }
-        let manifest = discovered.manifest.clone();
-        match load_mod_content(&discovered.manifest_path, &manifest) {
-            Ok(mod_content) => {
-                merge_campaign_content(&mut report.content, mod_content, &mut report.warnings);
-                report.loaded_mods.push(manifest);
-            }
-            Err(err) => report.warnings.push(format!(
+            Ok(None) => {}
+            Err(error) => report.warnings.push(format!(
                 "could not load mod {} ({}) from {}: {}",
                 manifest.id,
                 manifest.name,
-                discovered.manifest_path.display(),
-                err
+                item.directory.display(),
+                error
             )),
         }
     }
 
+    // Cross-mod references are checked only after all enabled mods have contributed
+    // their locations, factions, and event IDs.
+    merge_mod_events(
+        &mut report.content,
+        pending_mod_events,
+        &mut report.warnings,
+    );
+    report.content.loaded_mods = report.loaded_mods.clone();
     report.warnings.extend(report.content.validate());
     report
 }
 
-pub fn data_root_candidates() -> Vec<DataRootCandidate> {
-    let mut roots = Vec::new();
-    let mut push_root = |root: PathBuf| {
-        let normalized = fs::canonicalize(&root).unwrap_or(root);
-        if roots
-            .iter()
-            .all(|candidate: &DataRootCandidate| candidate.root != normalized)
-        {
-            roots.push(DataRootCandidate {
-                has_base_content: normalized.join(CONTENT_FILE_NAME).is_file(),
-                has_mods_directory: normalized.join(MODS_DIR_NAME).is_dir(),
-                root: normalized,
-            });
-        }
-    };
-
-    if let Ok(current_dir) = env::current_dir() {
-        push_root(current_dir.join("data"));
-    }
-    if let Ok(exe) = env::current_exe() {
-        if let Some(dir) = exe.parent() {
-            push_root(dir.join("data"));
-            if let Some(parent) = dir.parent() {
-                push_root(parent.join("data"));
-            }
-        }
-    }
-    roots
-}
-
-fn select_data_root(candidates: &[DataRootCandidate]) -> Option<PathBuf> {
-    candidates
-        .iter()
-        .find(|candidate| candidate.has_base_content && candidate.has_mods_directory)
-        .or_else(|| {
-            candidates
-                .iter()
-                .find(|candidate| candidate.has_base_content)
-        })
-        .map(|candidate| candidate.root.clone())
-}
-
 fn load_content_file(path: &Path) -> io::Result<CampaignContent> {
-    let data = fs::read_to_string(path)?;
-    serde_json::from_str(&data)
-        .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err.to_string()))
+    let data = fs::read(path)?;
+    serde_json::from_slice(&data)
+        .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error.to_string()))
 }
 
-fn load_mod_content(manifest_path: &Path, manifest: &ModManifest) -> io::Result<CampaignContent> {
-    let mod_root = manifest_path
-        .parent()
-        .unwrap_or_else(|| Path::new("."))
-        .canonicalize()?;
-    let content_path = mod_root.join(&manifest.content_file);
-    let resolved_path = fs::canonicalize(&content_path).map_err(|err| {
-        io::Error::new(
-            err.kind(),
-            format!(
-                "could not resolve mod content path {}: {err}",
-                content_path.display()
-            ),
-        )
-    })?;
-    if !resolved_path.starts_with(&mod_root) {
+fn load_mod_content(
+    mod_root: &Path,
+    manifest: &ModManifest,
+) -> io::Result<Option<CampaignContent>> {
+    let Some(content_file) = manifest.content_file.as_deref() else {
+        return Ok(None);
+    };
+    let relative = PathBuf::from(content_file);
+    if relative.as_os_str().is_empty()
+        || relative.is_absolute()
+        || !relative
+            .components()
+            .all(|component| matches!(component, Component::Normal(_)))
+        || content_file.contains('\\')
+    {
         return Err(io::Error::new(
             io::ErrorKind::PermissionDenied,
-            format!(
-                "mod content path escapes its mod directory: {}",
-                manifest.content_file
-            ),
+            "unsafe mod content path",
         ));
     }
-    load_content_file(&resolved_path)
-}
-
-fn discover_mods(mods_root: &Path, warnings: &mut Vec<String>) -> Vec<DiscoveredMod> {
-    let Ok(entries) = fs::read_dir(mods_root) else {
-        warnings.push(format!(
-            "could not read mods directory {}",
-            mods_root.display()
+    let canonical_root = fs::canonicalize(mod_root)?;
+    let canonical_path = fs::canonicalize(canonical_root.join(relative))?;
+    if !canonical_path.starts_with(&canonical_root) || !canonical_path.is_file() {
+        return Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            "mod content path escapes its directory",
         ));
-        return Vec::new();
-    };
-    let mut found = Vec::new();
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if !path.is_dir() {
-            continue;
-        }
-        let manifest_path = path.join("manifest.json");
-        if !manifest_path.is_file() {
-            warnings.push(format!(
-                "skipping mod directory without manifest: {}",
-                path.display()
-            ));
-            continue;
-        }
-        match fs::read_to_string(&manifest_path)
-            .ok()
-            .and_then(|data| serde_json::from_str::<ModManifest>(&data).ok())
-        {
-            Some(manifest) => found.push(DiscoveredMod {
-                manifest,
-                manifest_path,
-            }),
-            None => warnings.push(format!(
-                "could not parse mod manifest {}",
-                manifest_path.display()
-            )),
-        }
     }
-    found
+    load_content_file(&canonical_path).map(Some)
 }
 
-fn merge_campaign_content(
-    base: &mut CampaignContent,
-    incoming: CampaignContent,
-    warnings: &mut Vec<String>,
-) {
+fn merge_campaign_content(base: &mut CampaignContent, incoming: CampaignContent) {
     base.world.region = incoming.world.region;
     merge_vec_by_key(
         &mut base.world.locations,
@@ -271,6 +117,15 @@ fn merge_campaign_content(
     merge_vec_by_key(&mut base.item_visuals, incoming.item_visuals, |entry| {
         entry.item_name.clone()
     });
+}
+
+fn merge_mod_events(
+    base: &mut CampaignContent,
+    mut mod_events: Vec<(i32, String, Vec<EventContent>)>,
+    warnings: &mut Vec<String>,
+) {
+    // Match asset precedence: highest priority wins, then reverse lexical mod ID.
+    mod_events.sort_by(|left, right| right.0.cmp(&left.0).then_with(|| right.1.cmp(&left.1)));
 
     let locations: HashSet<&str> = base
         .world
@@ -283,83 +138,75 @@ fn merge_campaign_content(
         .iter()
         .map(|entry| entry.name.as_str())
         .collect();
-    let existing: HashSet<String> = base.events.iter().map(|event| event.id.clone()).collect();
-    let known: HashSet<String> = existing
-        .iter()
-        .cloned()
-        .chain(incoming.events.iter().map(|event| event.id.clone()))
-        .collect();
-    let accepted = filter_valid_events(
-        incoming.events,
-        &locations,
-        &factions,
-        &known,
-        &existing,
-        "mod content",
-        warnings,
-    );
-    base.events.extend(accepted);
-}
+    let existing_ids: HashSet<String> = base.events.iter().map(|event| event.id.clone()).collect();
 
-fn filter_valid_events(
-    events: Vec<EventContent>,
-    locations: &HashSet<&str>,
-    factions: &HashSet<&str>,
-    known_ids: &HashSet<String>,
-    existing_ids: &HashSet<String>,
-    source: &str,
-    warnings: &mut Vec<String>,
-) -> Vec<EventContent> {
-    let mut accepted = Vec::new();
     let mut seen_ids = existing_ids.clone();
-    let mut pending = Vec::new();
-    for event in events {
-        let mut issues = validate_event_content(&event, locations, factions, known_ids);
-        if !seen_ids.insert(event.id.clone()) {
-            issues.push(format!("duplicate event id {}", event.id));
+    let mut known_ids = existing_ids.clone();
+    let mut candidates = Vec::new();
+
+    for (_, mod_id, events) in mod_events {
+        for event in events {
+            if !seen_ids.insert(event.id.clone()) {
+                warnings.push(format!(
+                    "rejecting event '{}' from mod {}: duplicate event ID",
+                    event.id, mod_id
+                ));
+                continue;
+            }
+            known_ids.insert(event.id.clone());
+            candidates.push((mod_id.clone(), event));
         }
+    }
+
+    let mut pending = Vec::new();
+    for (mod_id, event) in candidates {
+        let issues = validate_event_content(&event, &locations, &factions, &known_ids);
         if issues.is_empty() {
-            pending.push(event);
+            pending.push((mod_id, event));
         } else {
             warnings.push(format!(
-                "rejecting event '{}' from {}: {}",
+                "rejecting event '{}' from mod {}: {}",
                 event.id,
-                source,
+                mod_id,
                 issues.join("; ")
             ));
         }
     }
+
+    // References to events that fail validation are pruned in dependency order.
     loop {
         let available: HashSet<String> = existing_ids
             .iter()
             .cloned()
-            .chain(accepted.iter().map(|event: &EventContent| event.id.clone()))
-            .chain(pending.iter().map(|event| event.id.clone()))
+            .chain(pending.iter().map(|(_, event)| event.id.clone()))
             .collect();
         let mut removed = false;
         let mut next = Vec::new();
-        for event in pending {
-            let prior = event
+
+        for (mod_id, event) in pending {
+            let prior_id = event
                 .conditions
                 .as_ref()
                 .and_then(|conditions| conditions.prior_event_id.as_deref());
-            if let Some(prior_id) = prior.filter(|id| !available.contains(*id)) {
+            if let Some(prior_id) = prior_id.filter(|id| !available.contains(*id)) {
                 warnings.push(format!(
-                    "rejecting event '{}' from {}: prior event '{}' was rejected or unavailable",
-                    event.id, source, prior_id
+                    "rejecting event '{}' from mod {}: prior event '{}' was rejected or unavailable",
+                    event.id, mod_id, prior_id
                 ));
                 removed = true;
             } else {
-                next.push(event);
+                next.push((mod_id, event));
             }
         }
+
         pending = next;
         if !removed {
             break;
         }
     }
-    accepted.extend(pending);
-    accepted
+
+    base.events
+        .extend(pending.into_iter().map(|(_, event)| event));
 }
 
 fn validate_event_content(
@@ -473,106 +320,94 @@ mod tests {
         }
     }
 
-    #[test]
-    fn mod_content_paths_must_stay_inside_mod_directory() {
-        let root = std::env::temp_dir().join(format!(
-            "ashen_chronicle_mod_path_test_{}",
-            std::process::id()
-        ));
-        let mod_root = root.join("mod");
-        let nested = mod_root.join("nested");
-        let outside = root.join("outside.json");
-        fs::create_dir_all(&nested).expect("test directories should be created");
-        fs::write(
-            nested.join("content.json"),
-            serde_json::to_string(&default_campaign_content()).expect("content should serialize"),
-        )
-        .expect("nested content should exist");
-        fs::write(&outside, "{}").expect("outside content should exist");
-        let manifest_path = mod_root.join("manifest.json");
-        fs::write(&manifest_path, "{}").expect("manifest should exist");
-
-        let valid = ModManifest {
-            id: "test".into(),
-            name: "Test".into(),
-            version: "1.0.0".into(),
-            enabled: true,
-            priority: 0,
-            content_file: "nested/content.json".into(),
-        };
-        assert!(load_mod_content(&manifest_path, &valid).is_ok());
-
-        let escaping = ModManifest {
-            content_file: "../outside.json".into(),
-            ..valid
-        };
-        let err = load_mod_content(&manifest_path, &escaping)
-            .expect_err("escaping path should be rejected");
-        assert_eq!(err.kind(), io::ErrorKind::PermissionDenied);
-        fs::remove_dir_all(&root).expect("test directory should be removed");
-    }
-
-    #[test]
-    fn data_root_candidates_do_not_duplicate_canonical_paths() {
-        let candidates = data_root_candidates();
-        let mut roots = HashSet::new();
-        for candidate in candidates {
-            assert!(roots.insert(candidate.root));
-        }
+    fn empty_mod_content() -> CampaignContent {
+        let mut content = default_campaign_content();
+        content.world.locations.clear();
+        content.factions.clear();
+        content.npcs.clear();
+        content.quests.clear();
+        content.encounters.clear();
+        content.atmospheres.clear();
+        content.item_visuals.clear();
+        content.events.clear();
+        content
     }
 
     #[test]
     fn invalid_events_are_rejected_and_reported() {
-        let mut warnings = Vec::new();
-        let locations = HashSet::from(["Ashen Gate"]);
-        let factions = HashSet::from(["Cinder Wardens"]);
-        let known = HashSet::from(["good.event".into(), "bad.event".into()]);
+        let mut base = default_campaign_content();
         let mut invalid = valid_event("bad.event");
         invalid.weight = 0;
-        invalid.conditions = Some(EventConditionContent {
-            locations: vec!["Unknown Place".into()],
-            ..Default::default()
-        });
-        let accepted = filter_valid_events(
-            vec![valid_event("good.event"), invalid],
-            &locations,
-            &factions,
-            &known,
-            &HashSet::new(),
-            "test content",
+        let mut warnings = Vec::new();
+
+        merge_mod_events(
+            &mut base,
+            vec![(1, "invalid.mod".into(), vec![invalid])],
             &mut warnings,
         );
-        assert_eq!(accepted.len(), 1);
-        assert_eq!(accepted[0].id, "good.event");
-        assert!(warnings[0].contains("zero weight"));
-        assert!(warnings[0].contains("unknown location"));
+
+        assert!(!base.events.iter().any(|event| event.id == "bad.event"));
+        assert!(warnings
+            .iter()
+            .any(|warning| warning.contains("zero weight")));
     }
 
     #[test]
-    fn rejected_prior_event_rejects_dependents() {
-        let mut warnings = Vec::new();
-        let locations = HashSet::from(["Ashen Gate"]);
-        let factions = HashSet::from(["Cinder Wardens"]);
-        let known = HashSet::from(["bad.event".into(), "followup.event".into()]);
-        let mut bad = valid_event("bad.event");
-        bad.weight = 0;
-        let mut followup = valid_event("followup.event");
-        followup.conditions = Some(EventConditionContent {
-            prior_event_id: Some("bad.event".into()),
+    fn mod_events_can_reference_definitions_from_other_mods() {
+        let mut base = default_campaign_content();
+        let mut event_mod = empty_mod_content();
+        let mut event = valid_event("events.cross_mod_reference");
+        event.conditions = Some(EventConditionContent {
+            locations: vec!["Later Reach".into()],
+            faction_name: Some("Later Ward".into()),
+            prior_event_id: Some("events.later_dependency".into()),
             ..Default::default()
         });
-        let accepted = filter_valid_events(
-            vec![bad, followup],
-            &locations,
-            &factions,
-            &known,
-            &HashSet::new(),
-            "test content",
-            &mut warnings,
-        );
-        assert!(accepted.is_empty());
-        assert!(warnings
+        event_mod.events.push(event);
+        let pending = vec![
+            (
+                10,
+                "events.mod".to_string(),
+                std::mem::take(&mut event_mod.events),
+            ),
+            (
+                1,
+                "definitions.mod".to_string(),
+                vec![valid_event("events.later_dependency")],
+            ),
+        ];
+
+        // The event is supplied before the location and faction it references.
+        merge_campaign_content(&mut base, event_mod);
+
+        let mut definitions_mod = empty_mod_content();
+        definitions_mod.world.locations.push(LocationContent {
+            id: "location.later-reach".into(),
+            name: "Later Reach".into(),
+            description: "A test location supplied by another mod.".into(),
+            dangerous: false,
+            exits: Vec::new(),
+            scene_art: None,
+            scene_image: None,
+            spatial_layout: None,
+        });
+        definitions_mod.factions.push(FactionContent {
+            id: "faction.later-ward".into(),
+            name: "Later Ward".into(),
+        });
+        merge_campaign_content(&mut base, definitions_mod);
+
+        let mut warnings = Vec::new();
+        merge_mod_events(&mut base, pending, &mut warnings);
+
+        assert!(base
+            .events
             .iter()
-            .any(|warning| warning.contains("followup.event") && warning.contains("unavailable")));
+            .any(|candidate| candidate.id == "events.cross_mod_reference"));
+        assert!(base
+            .events
+            .iter()
+            .any(|candidate| candidate.id == "events.later_dependency"));
+        assert!(warnings.is_empty(), "unexpected warnings: {warnings:?}");
     }
 }

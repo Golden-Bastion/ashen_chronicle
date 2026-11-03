@@ -47,12 +47,12 @@ fn log_browser_back(keyboard: Res<ButtonInput<KeyCode>>) {
 
 #[cfg(target_os = "android")]
 fn write_debug_line(line: &str) {
-    // Relative to cwd, which GamePaths::initialize() already sets to the
-    // game root. "saves/" is mirrored to the user's SAF folder in
-    // MainActivity.syncLocalStorageToShared(), so this shows up there
-    // with no adb/root/Shizuku needed.
+    // Diagnostics remain inside the app-private save area; no shared-folder
+    // mirroring or working-directory assumption is involved.
     bevy::log::info!("{line}");
-    let path = std::path::Path::new("saves").join("_input_debug.log");
+    let path = crate::game_paths::GamePaths::get()
+        .saves_dir
+        .join("_input_debug.log");
     let result = std::fs::OpenOptions::new()
         .create(true)
         .append(true)

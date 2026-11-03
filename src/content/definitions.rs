@@ -19,6 +19,8 @@ pub struct CampaignContent {
     pub item_visuals: Vec<ItemVisualContent>,
     #[serde(default)]
     pub events: Vec<EventContent>,
+    #[serde(skip)]
+    pub loaded_mods: Vec<ModManifest>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -183,8 +185,8 @@ pub struct ModManifest {
     pub priority: i32,
     #[serde(default = "default_true")]
     pub enabled: bool,
-    #[serde(default = "default_mod_content_file")]
-    pub content_file: String,
+    #[serde(default)]
+    pub content_file: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -457,8 +459,4 @@ where
 
 fn default_true() -> bool {
     true
-}
-
-fn default_mod_content_file() -> String {
-    "content.json".to_string()
 }

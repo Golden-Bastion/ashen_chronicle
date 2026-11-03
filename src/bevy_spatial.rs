@@ -1533,7 +1533,9 @@ mod tests {
             ("spatial/prop_pillar.png", 32, 40),
             ("spatial/prop_table.png", 72, 48),
         ] {
-            let path = std::path::Path::new("data/assets").join(reference);
+            let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("data/assets")
+                .join(reference);
             let bytes = std::fs::read(&path)
                 .unwrap_or_else(|error| panic!("asset {} should exist: {error}", path.display()));
             let image = Image::from_buffer(

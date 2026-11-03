@@ -1,9 +1,7 @@
 use super::console_ui::{ConsoleState, ScrollPosition};
-use crate::content::{campaign_content_load_diagnostics, load_campaign_content};
+use crate::content::campaign_content_load_diagnostics;
 use crate::model::{Condition, EntityId, GameState, Item};
 use crate::persistence::save_game;
-use std::env;
-use std::fs;
 use std::io;
 use std::path::Path;
 pub(super) fn execute_line(
@@ -61,10 +59,9 @@ pub(super) fn execute_line(
         "time" => time_cmd(state, console, args),
         "day" => day_cmd(state, console, args),
         "history" => history(state, console),
-        "reload" => {
-            state.campaign_content = Some(load_campaign_content());
-            console.output.push("Campaign content reloaded.".into());
-        }
+        "reload" => console.output.push(
+            "Mod and content changes require a full game restart; reload is disabled.".into(),
+        ),
         "save" => save(state, save_path, console)?,
         "exit" | "quit" => console.exit = true,
         _ => console
@@ -109,65 +106,46 @@ fn status(state: &GameState, console: &mut ConsoleState) {
     ));
 }
 fn where_content(console: &mut ConsoleState) {
+    let paths = crate::game_paths::GamePaths::get();
+    console
+        .output
+        .push(format!("internal root: {}", paths.root.display()));
+    console
+        .output
+        .push(format!("saves: {}", paths.saves_dir.display()));
+    console
+        .output
+        .push(format!("mods: {}", paths.mods_dir.display()));
+    console
+        .output
+        .push(format!("imports: {}", paths.imports_dir.display()));
     console.output.push(format!(
-        "cwd: {}",
-        env::current_dir()
-            .map(|path| path.display().to_string())
-            .unwrap_or_else(|_| "<unavailable>".into())
+        "bundled assets: {}",
+        paths.bundled_assets_dir.display()
     ));
-    if let Ok(exe) = env::current_exe() {
-        console.output.push(format!("exe: {}", exe.display()));
-        if let Some(dir) = exe.parent() {
-            console.output.push(format!("exe_dir: {}", dir.display()));
-            console
-                .output
-                .push(format!("data beside exe: {}", dir.join("data").display()));
-            console.output.push(format!(
-                "mods beside exe: {}",
-                dir.join("data/mods").display()
-            ));
-        }
-    }
 }
+
 fn mods(console: &mut ConsoleState) {
-    let mut roots = Vec::new();
-    if let Ok(cwd) = env::current_dir() {
-        roots.push(cwd.join("data/mods"));
-    }
-    if let Ok(exe) = env::current_exe() {
-        if let Some(dir) = exe.parent() {
-            roots.push(dir.join("data/mods"));
+    match crate::mod_manager::list_installed_mods() {
+        Ok(installed) if installed.is_empty() => {
+            console.output.push("No mods installed.".into());
         }
-    }
-    let mut found = false;
-    for root in roots {
-        if !root.exists() {
-            console
-                .output
-                .push(format!("mods root missing: {}", root.display()));
-            continue;
-        }
-        console
-            .output
-            .push(format!("mods root: {}", root.display()));
-        match fs::read_dir(&root) {
-            Ok(entries) => {
-                for entry in entries.flatten() {
-                    if entry.path().is_dir() {
-                        found = true;
-                        console
-                            .output
-                            .push(format!("  {}", entry.file_name().to_string_lossy()));
-                    }
-                }
+        Ok(installed) => {
+            for item in installed {
+                console.output.push(format!(
+                    "{} | {} | version={} enabled={} priority={} assets={}",
+                    item.manifest.id,
+                    item.manifest.name,
+                    item.manifest.version,
+                    item.enabled,
+                    item.priority,
+                    item.asset_count
+                ));
             }
-            Err(error) => console.output.push(format!("  read error: {error}")),
         }
-    }
-    if !found {
-        console
+        Err(error) => console
             .output
-            .push("No external mod directories discovered.".into());
+            .push(format!("Could not inspect installed mods: {error}")),
     }
 }
 fn content(state: &GameState, console: &mut ConsoleState) {

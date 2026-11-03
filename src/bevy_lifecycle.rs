@@ -8,17 +8,19 @@ use crate::bevy_presentation::{
     self, BevyScreenRoot, LifecycleTextField, NavigationState, ScreenId, SemanticInputQueue,
 };
 use crate::game::validate_loaded_state;
-use crate::game_paths::SAVES_DIRECTORY_NAME;
+use crate::game_paths::GamePaths;
 use crate::input::InputEvent;
 use crate::model::{create_inherited_state, create_new_state, GameState, WorldMode};
-use crate::persistence::{character_save_path, find_save_files, legacy_save_path, load_game};
+use crate::persistence::{
+    character_save_path, find_save_files, legacy_save_path, load_game_with_metadata,
+};
 use crate::presentation::{DeathView, FactionView, ItemView, ScreenView};
 use bevy::input_focus::{FocusCause, FocusGained, InputFocus};
 use bevy::prelude::*;
 use bevy::text::EditableText;
 #[cfg(any(target_os = "android", test))]
 use bevy::text::TextEdit;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 #[cfg(target_os = "android")]
@@ -336,20 +338,45 @@ fn activate_selection(
                 return None;
             }
             if let Some(path) = lifecycle.save_files.get(lifecycle.selected).cloned() {
-                match load_game(&path) {
-                    Ok(state) => {
-                        let warnings = validate_loaded_state(&state);
-                        let save_path = character_save_path(
-                            Path::new(SAVES_DIRECTORY_NAME),
-                            &state.character.name,
-                        );
-                        lifecycle.pending_state = Some((state, save_path));
+                match load_game_with_metadata(&path) {
+                    Ok(loaded) => {
+                        let state = loaded.game;
+                        let mut warnings = validate_loaded_state(&state);
+                        let active_mods = crate::mod_manager::active_mods();
+                        for dependency in &loaded.mod_dependencies {
+                            match active_mods
+                                .iter()
+                                .find(|item| item.manifest.id == dependency.id)
+                            {
+                                None => warnings.push(format!(
+                                    "Missing mod: {} ({}) version {}.",
+                                    dependency.name, dependency.id, dependency.version
+                                )),
+                                Some(item) if !item.enabled => warnings.push(format!(
+                                    "Required mod is disabled: {} ({}) version {}.",
+                                    dependency.name, dependency.id, dependency.version
+                                )),
+                                Some(item) if item.manifest.version != dependency.version => {
+                                    warnings.push(format!(
+                                        "Mod version mismatch: {} ({}) save={} installed={}.",
+                                        dependency.name,
+                                        dependency.id,
+                                        dependency.version,
+                                        item.manifest.version
+                                    ))
+                                }
+                                Some(_) => {}
+                            }
+                        }
+                        // Keep the selected slot as the active save path, including
+                        // imported slots with collision-safe alternate filenames.
+                        lifecycle.pending_state = Some((state, path.clone()));
                         lifecycle.message = if warnings.is_empty() {
                             None
                         } else {
                             Some(format!(
-                                "Save loaded with {} warning(s). Confirm to continue.",
-                                warnings.len()
+                                "Save has warnings. Confirm to continue at your own responsibility:\n{}",
+                                warnings.join("\n")
                             ))
                         };
                         if warnings.is_empty() {
@@ -455,16 +482,14 @@ fn handle_cancel(lifecycle: &mut LifecycleState, navigation: &mut NavigationStat
 }
 
 fn available_save_files() -> Vec<PathBuf> {
-    let current_dir = PathBuf::from(".");
-    let saves_dir = PathBuf::from(SAVES_DIRECTORY_NAME);
-    let mut save_files = find_save_files(&saves_dir).unwrap_or_default();
-    let legacy = legacy_save_path(&current_dir);
+    let paths = GamePaths::get();
+    let mut save_files = find_save_files(&paths.saves_dir).unwrap_or_default();
+    let legacy = legacy_save_path(&paths.root);
     if legacy.exists() && !save_files.iter().any(|path| path == &legacy) {
         save_files.push(legacy);
     }
     save_files
 }
-
 pub(crate) fn has_available_saves() -> bool {
     !available_save_files().is_empty()
 }
@@ -498,6 +523,10 @@ impl LifecycleState {
         self.save_files = available_save_files();
         self.selected = 0;
         self.dirty = true;
+    }
+
+    pub(crate) fn refresh_saved_games(&mut self) {
+        self.refresh_saves();
     }
 
     pub(crate) fn start_new_game(&mut self, navigation: &mut NavigationState) {
@@ -586,7 +615,7 @@ impl LifecycleState {
             title.to_string(),
         );
         crate::game::world::bootstrap_campaign_content(&mut state);
-        let save_path = character_save_path(Path::new(SAVES_DIRECTORY_NAME), character_name);
+        let save_path = character_save_path(&GamePaths::get().saves_dir, character_name);
         self.session = Some(GameSession { state, save_path });
         self.pending_state = None;
         self.phase = LifecyclePhase::Complete;
@@ -625,7 +654,7 @@ impl LifecycleState {
             self.character_title.trim()
         };
         let state = create_inherited_state(&session.state, name.to_string(), title.to_string());
-        let save_path = character_save_path(Path::new(SAVES_DIRECTORY_NAME), name);
+        let save_path = character_save_path(&GamePaths::get().saves_dir, name);
         self.session = Some(GameSession { state, save_path });
         self.phase = LifecyclePhase::Complete;
         self.selected = 0;
@@ -1319,10 +1348,12 @@ mod tests {
 
     #[test]
     fn character_save_paths_use_the_dedicated_saves_directory() {
-        let path = character_save_path(Path::new(SAVES_DIRECTORY_NAME), "Ash Walker");
+        let saves_dir = PathBuf::from("saves");
+        let path = character_save_path(&saves_dir, "Ash Walker");
+        assert_eq!(path.parent(), Some(saves_dir.as_path()));
         assert_eq!(
-            path,
-            PathBuf::from("saves/ashen_chronicle_save_Ash Walker.json.gz")
+            path.file_name().and_then(|name| name.to_str()),
+            Some("ashen_chronicle_save_Ash Walker.json.gz")
         );
     }
 
