@@ -12,7 +12,8 @@ use crate::bevy_presentation::{
     self, BevyScreenRoot, GameplayInputQueue, NavigationState, ScreenId, UiSelected,
 };
 use crate::ui_settings::UiSettings;
-use bevy::ui::{RemSize, UiScale};
+use bevy::ui::prelude::RemSize;
+use bevy::ui::UiScale;
 use crate::input::InputEvent;
 use crate::mod_manager::InstalledMod;
 

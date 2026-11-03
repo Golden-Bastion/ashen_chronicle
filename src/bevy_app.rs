@@ -7,7 +7,8 @@
 use crate::desktop_window;
 use bevy::input_focus::tab_navigation::TabNavigationPlugin;
 use bevy::prelude::*;
-use bevy::ui::{RemSize, UiScale};
+use bevy::ui::prelude::RemSize;
+use bevy::ui::UiScale;
 #[cfg(not(target_os = "android"))]
 use bevy::window::{MonitorSelection, VideoModeSelection, WindowMode};
 use bevy_picking::events::PointerRelease;
@@ -73,7 +74,7 @@ fn setup(mut commands: Commands) {
 #[cfg(test)]
 #[cfg(not(target_os = "android"))]
 mod tests {
-    use super::WINDOW_TITLE;
+    use super::{desktop_window_mode, WINDOW_TITLE};
     use bevy::window::{MonitorSelection, VideoModeSelection, WindowMode};
 
     #[test]
