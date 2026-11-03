@@ -15,7 +15,8 @@ const DEFAULT_SCALE: f32 = 1.0;
 const MIN_SCALE_PERCENT: i32 = 75;
 const MAX_SCALE_PERCENT: i32 = 150;
 const SCALE_STEP_PERCENT: i32 = 5;
-pub(crate) const BASE_REM_SIZE_PX: f32 = 20.0;
+const BASE_VIEWPORT_MIN_PX: f32 = 720.0;
+const BASE_REM_SIZE_PX: f32 = 20.0;
 
 /// User-controlled scale factors shared by desktop and Android.
 #[derive(Resource, Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
@@ -47,7 +48,8 @@ impl UiSettings {
     pub(crate) fn save(&self) -> io::Result<()> {
         let serialized = serde_json::to_vec_pretty(&self.sanitized())
             .map_err(io::Error::other)?;
-        let mut file = AtomicWriteFile::open(Self::path())?;
+        let path = Self::path();
+        let mut file = AtomicWriteFile::open(path.as_path())?;
         file.write_all(&serialized)?;
         file.commit()
     }
@@ -60,8 +62,9 @@ impl UiSettings {
         self.font_scale
     }
 
-    pub(crate) fn rem_size_px(&self) -> f32 {
-        BASE_REM_SIZE_PX * self.font_scale
+    pub(crate) fn rem_size_px(&self, viewport_min_px: f32) -> f32 {
+        let viewport_factor = viewport_min_px / BASE_VIEWPORT_MIN_PX;
+        BASE_REM_SIZE_PX * viewport_factor * self.font_scale
     }
 
     pub(crate) fn adjust_ui_scale(&mut self, direction: i32) -> bool {
@@ -162,5 +165,18 @@ mod tests {
         assert_eq!(sanitize_scale(0.1), 0.75);
         assert_eq!(sanitize_scale(2.0), 1.5);
         assert_eq!(sanitize_scale(1.125), 1.13);
+    }
+
+    #[test]
+    fn font_size_tracks_the_viewport_and_user_preference() {
+        let defaults = UiSettings::default();
+        assert_eq!(defaults.rem_size_px(720.0), 20.0);
+        assert_eq!(defaults.rem_size_px(1080.0), 30.0);
+
+        let settings = UiSettings {
+            font_scale: 1.25,
+            ..defaults
+        };
+        assert_eq!(settings.rem_size_px(720.0), 25.0);
     }
 }

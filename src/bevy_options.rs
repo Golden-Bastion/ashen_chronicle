@@ -491,14 +491,24 @@ fn import_mod(options: &mut OptionsState) {
 
 fn apply_ui_settings(
     settings: Res<UiSettings>,
+    window: Single<&Window, With<bevy::window::PrimaryWindow>>,
     mut ui_scale: ResMut<UiScale>,
     mut rem_size: ResMut<RemSize>,
+    mut last_viewport_min: Local<f32>,
 ) {
-    if !settings.is_changed() {
+    let viewport_min = window.width().min(window.height());
+    if viewport_min <= 0.0 {
         return;
     }
+
+    let viewport_changed = (viewport_min - *last_viewport_min).abs() > f32::EPSILON;
+    if !settings.is_changed() && !viewport_changed {
+        return;
+    }
+
     ui_scale.0 = settings.ui_scale();
-    rem_size.0 = settings.rem_size_px();
+    rem_size.0 = settings.rem_size_px(viewport_min);
+    *last_viewport_min = viewport_min;
 }
 
 fn close_options(
@@ -753,7 +763,7 @@ fn render_interface_tab(
     bevy_presentation::spawn_muted_label(
         commands,
         panel,
-        "Adjust fixed-size interface elements and text independently. Changes apply immediately and are saved on this device.",
+        "UI scale changes fixed-size elements and rendered text; font size adjusts text independently. Changes apply immediately and are saved on this device.",
     );
 
     spawn_interface_scale_row(commands, panel, "UI SCALE", settings.ui_scale(), 0, 1, options);
@@ -781,8 +791,46 @@ fn spawn_interface_scale_row(
         ..default()
     }).id();
     commands.entity(panel).add_child(row);
-    spawn_option_button(commands, row, decrease_index, "−", options.selected == decrease_index);
-    spawn_option_button(commands, row, increase_index, "+", options.selected == increase_index);
+    spawn_adjustment_button(commands, row, decrease_index, "−", options.selected == decrease_index);
+    spawn_adjustment_button(commands, row, increase_index, "+", options.selected == increase_index);
+}
+
+fn spawn_adjustment_button(
+    commands: &mut Commands,
+    parent: Entity,
+    index: usize,
+    label: &str,
+    selected: bool,
+) {
+    let button = commands
+        .spawn((
+            Button,
+            Hovered::default(),
+            bevy_presentation::ChoiceButton { index },
+            bevy_presentation::UiStyledButton,
+            Node {
+                min_width: px(64),
+                min_height: bevy_presentation::touch_target_size(),
+                padding: UiRect::all(px(8)),
+                border: UiRect::all(px(1)),
+                justify_content: JustifyContent::Center,
+                align_items: AlignItems::Center,
+                ..default()
+            },
+            BorderColor::all(bevy_presentation::THEME_BORDER),
+            BackgroundColor(bevy_presentation::THEME_SURFACE),
+            children![(
+                Text::new(label.to_string()),
+                bevy_presentation::TextContent,
+                TextFont::from_font_size(bevy_presentation::muted_font_size()),
+                TextColor(bevy_presentation::THEME_TEXT),
+            )],
+        ))
+        .id();
+    if selected {
+        commands.entity(button).insert(UiSelected);
+    }
+    commands.entity(parent).add_child(button);
 }
 
 #[cfg(target_os = "android")]

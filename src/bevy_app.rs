@@ -45,7 +45,8 @@ pub fn run() {
         ..default()
     }));
     app.insert_resource(UiScale(ui_settings.ui_scale()));
-    app.insert_resource(RemSize(ui_settings.rem_size_px()));
+    // Start from the 1280x720 baseline until the actual window viewport is known.
+    app.insert_resource(RemSize(ui_settings.rem_size_px(720.0)));
     app.insert_resource(ui_settings);
     app.add_plugins(TabNavigationPlugin);
     bevy_presentation::install(&mut app);
