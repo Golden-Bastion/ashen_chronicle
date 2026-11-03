@@ -78,7 +78,7 @@ impl UiSettings {
     }
 
     pub(crate) fn adjust_ui_scale(&mut self, delta: i16) -> bool {
-        let next = (i16::from(self.ui_scale_percent) + delta).clamp(
+        let next = i16::from(self.ui_scale_percent).saturating_add(delta).clamp(
             i16::from(MIN_UI_SCALE_PERCENT),
             i16::from(MAX_UI_SCALE_PERCENT),
         ) as u8;
@@ -90,7 +90,7 @@ impl UiSettings {
     }
 
     pub(crate) fn adjust_font_size(&mut self, delta: i16) -> bool {
-        let next = (i16::from(self.font_size_percent) + delta).clamp(
+        let next = i16::from(self.font_size_percent).saturating_add(delta).clamp(
             i16::from(MIN_FONT_SIZE_PERCENT),
             i16::from(MAX_FONT_SIZE_PERCENT),
         ) as u8;
@@ -241,6 +241,21 @@ mod tests {
         assert_eq!(settings.font_size_percent(), MIN_FONT_SIZE_PERCENT);
         assert!(!settings.adjust_ui_scale(SETTING_STEP));
         assert!(!settings.adjust_font_size(-SETTING_STEP));
+    }
+
+    #[test]
+    fn extreme_interface_adjustments_saturate_without_overflow() {
+        let mut settings = UiSettings::default();
+
+        assert!(settings.adjust_ui_scale(i16::MAX));
+        assert_eq!(settings.ui_scale_percent(), MAX_UI_SCALE_PERCENT);
+        assert!(settings.adjust_ui_scale(i16::MIN));
+        assert_eq!(settings.ui_scale_percent(), MIN_UI_SCALE_PERCENT);
+
+        assert!(settings.adjust_font_size(i16::MAX));
+        assert_eq!(settings.font_size_percent(), MAX_FONT_SIZE_PERCENT);
+        assert!(settings.adjust_font_size(i16::MIN));
+        assert_eq!(settings.font_size_percent(), MIN_FONT_SIZE_PERCENT);
     }
 
     #[test]
