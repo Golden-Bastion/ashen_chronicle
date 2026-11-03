@@ -892,7 +892,10 @@ fn compact_action_button_node() -> Node {
         min_height: touch_target_size(),
         flex_grow: 0.0,
         flex_shrink: 0.0,
-        padding: UiRect::axes(responsive_vmin(1.111), responsive_vmin(UI_ACTION_PADDING_VERTICAL_VMIN)),
+        padding: UiRect::axes(
+            responsive_vmin(1.111),
+            responsive_vmin(UI_ACTION_PADDING_VERTICAL_VMIN),
+        ),
         border: UiRect::all(px(1)),
         justify_content: JustifyContent::Center,
         align_items: AlignItems::Center,
@@ -1987,6 +1990,7 @@ mod tests {
         assert_eq!(node.flex_shrink, 0.0);
         assert_eq!(node.min_height, touch_target_size());
     }
+
     #[test]
     fn option_rows_mirror_label_and_control_columns() {
         let left_label = option_row_label_node(OptionRowLabelSide::Left);
@@ -2041,12 +2045,35 @@ mod tests {
 
     #[test]
     fn compact_action_buttons_keep_touch_sized_bounds_without_filling_the_row() {
+        #[derive(Resource)]
+        struct Fixture(Entity);
+
+        fn setup(mut commands: Commands) {
+            let parent = commands.spawn_empty().id();
+            let button = spawn_compact_action_button(&mut commands, parent, 7, "−5%");
+            commands.insert_resource(Fixture(button));
+        }
+
         let node = compact_action_button_node();
         assert_eq!(node.width, Val::Auto);
         assert_eq!(node.min_width, touch_target_size());
         assert_eq!(node.min_height, touch_target_size());
         assert_eq!(node.flex_grow, 0.0);
         assert_eq!(node.flex_shrink, 0.0);
+
+        let mut world = World::new();
+        let mut schedule = Schedule::default();
+        schedule.add_systems(setup);
+        schedule.run(&mut world);
+        let button = world.resource::<Fixture>().0;
+        assert_eq!(
+            world.get::<UiTouchTargetShape>(button),
+            Some(&UiTouchTargetShape::MinimumBounds {
+                width: UI_TOUCH_TARGET_PX as u16,
+                height: UI_TOUCH_TARGET_PX as u16,
+            })
+        );
+        assert_eq!(world.get::<ChoiceButton>(button).unwrap().index, 7);
     }
 
     #[test]
