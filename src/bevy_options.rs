@@ -318,7 +318,9 @@ fn activate_mods_action(
     };
 
     let result = match action {
-        MOD_ENABLE_ACTION => crate::mod_manager::set_mod_enabled(&item.manifest.id, !item.enabled),
+        MOD_ENABLE_ACTION => {
+            crate::mod_manager::set_mod_enabled(&item.manifest.id, !item.enabled)
+        }
         MOD_DELETE_ACTION => {
             if options.pending_remove_id.as_deref() != Some(item.manifest.id.as_str()) {
                 options.pending_remove_id = Some(item.manifest.id.clone());
@@ -332,10 +334,16 @@ fn activate_mods_action(
             crate::mod_manager::remove_mod(&item.manifest.id)
         }
         MOD_PRIORITY_UP_ACTION => {
-            crate::mod_manager::set_mod_priority(&item.manifest.id, item.priority.saturating_add(1))
+            crate::mod_manager::set_mod_priority(
+                &item.manifest.id,
+                item.priority.saturating_add(1),
+            )
         }
         MOD_PRIORITY_DOWN_ACTION => {
-            crate::mod_manager::set_mod_priority(&item.manifest.id, item.priority.saturating_sub(1))
+            crate::mod_manager::set_mod_priority(
+                &item.manifest.id,
+                item.priority.saturating_sub(1),
+            )
         }
         _ => return,
     };
@@ -740,7 +748,8 @@ fn spawn_option_control_button(
     label: impl Into<String>,
     selected: bool,
 ) {
-    let button = bevy_presentation::spawn_compact_action_button(commands, parent, index, label);
+    let button =
+        bevy_presentation::spawn_compact_action_button(commands, parent, index, label);
     if selected {
         commands.entity(button).insert(UiSelected);
     }
@@ -781,8 +790,20 @@ fn render_interface_tab(
             panel,
             bevy_presentation::OptionRowLabelSide::Right,
         );
-        spawn_option_control_button(commands, row.controls, decrease, "−5%", options.selected == decrease);
-        spawn_option_control_button(commands, row.controls, increase, "+5%", options.selected == increase);
+        spawn_option_control_button(
+            commands,
+            row.controls,
+            decrease,
+            "−5%",
+            options.selected == decrease,
+        );
+        spawn_option_control_button(
+            commands,
+            row.controls,
+            increase,
+            "+5%",
+            options.selected == increase,
+        );
         bevy_presentation::spawn_option_row_value(
             commands,
             row.label,
