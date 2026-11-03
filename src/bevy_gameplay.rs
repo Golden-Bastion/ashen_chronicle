@@ -859,7 +859,10 @@ fn render_world_context(
                 position_type: PositionType::Absolute,
                 left: percent(5),
                 top: percent(28),
-                padding: UiRect::axes(bevy_presentation::responsive_vmin(1.3), bevy_presentation::responsive_vmin(0.9)),
+                padding: UiRect::axes(
+                    bevy_presentation::responsive_vmin(1.3),
+                    bevy_presentation::responsive_vmin(0.9),
+                ),
                 border: UiRect::all(px(1)),
                 ..default()
             },

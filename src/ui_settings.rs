@@ -178,7 +178,8 @@ fn apply_ui_settings(
             }
             crate::bevy_presentation::UiTouchTargetShape::MinimumBounds { width, height } => {
                 let target_width = Val::Px(touch_target_base_size(f32::from(*width), touch_scale));
-                let target_height = Val::Px(touch_target_base_size(f32::from(*height), touch_scale));
+                let target_height =
+                    Val::Px(touch_target_base_size(f32::from(*height), touch_scale));
                 if node.min_width != target_width {
                     node.min_width = target_width;
                 }
@@ -266,8 +267,11 @@ mod tests {
     #[test]
     fn touch_target_compensation_preserves_48_logical_pixels() {
         for scale in [0.75, 1.0, 1.25] {
-            let base_size = touch_target_base_size(crate::bevy_presentation::UI_TOUCH_TARGET_PX, scale);
-            assert!((base_size * scale - crate::bevy_presentation::UI_TOUCH_TARGET_PX).abs() < 0.001);
+            let base_size =
+                touch_target_base_size(crate::bevy_presentation::UI_TOUCH_TARGET_PX, scale);
+            assert!(
+                (base_size * scale - crate::bevy_presentation::UI_TOUCH_TARGET_PX).abs() < 0.001
+            );
         }
     }
 
@@ -336,23 +340,27 @@ mod tests {
         assert!((world.resource::<UiScale>().0 - 0.75).abs() < f32::EPSILON);
         assert!((world.resource::<RemSize>().0 - base_viewport_em * 1.5).abs() < 0.01);
         assert!(
-            (world.get::<EmSize>(layout_node).unwrap().0 - base_viewport_em * 0.75).abs()
-                < 0.01
+            (world.get::<EmSize>(layout_node).unwrap().0 - base_viewport_em * 0.75).abs() < 0.01
         );
         assert!((world.get::<EmSize>(text_node).unwrap().0 - 20.0).abs() < 0.01);
 
-        let touch_scale = if cfg!(target_os = "android") { 0.75 } else { 1.0 };
-        let expected_touch_size = touch_target_base_size(
-            crate::bevy_presentation::UI_TOUCH_TARGET_PX,
-            touch_scale,
-        );
+        let touch_scale = if cfg!(target_os = "android") {
+            0.75
+        } else {
+            1.0
+        };
+        let expected_touch_size =
+            touch_target_base_size(crate::bevy_presentation::UI_TOUCH_TARGET_PX, touch_scale);
         assert_eq!(
             world.get::<Node>(height_target).unwrap().min_height,
             Val::Px(expected_touch_size)
         );
 
         let bounds = world.get::<Node>(minimum_bounds_target).unwrap();
-        assert_eq!(bounds.min_width, Val::Px(touch_target_base_size(52.0, touch_scale)));
+        assert_eq!(
+            bounds.min_width,
+            Val::Px(touch_target_base_size(52.0, touch_scale))
+        );
         assert_eq!(bounds.min_height, Val::Px(expected_touch_size));
 
         let square = world.get::<Node>(square_target).unwrap();
