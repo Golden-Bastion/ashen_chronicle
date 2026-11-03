@@ -11,11 +11,11 @@ use crate::bevy_lifecycle::{LifecyclePhase, LifecycleState};
 use crate::bevy_presentation::{
     self, BevyScreenRoot, GameplayInputQueue, NavigationState, ScreenId, UiSelected,
 };
+use crate::input::InputEvent;
+use crate::mod_manager::InstalledMod;
 use crate::ui_settings::UiSettings;
 use bevy::ui::prelude::RemSize;
 use bevy::ui::UiScale;
-use crate::input::InputEvent;
-use crate::mod_manager::InstalledMod;
 
 const MOD_ACTIONS_PER_MOD: usize = 4;
 
@@ -766,8 +766,24 @@ fn render_interface_tab(
         "UI scale changes fixed-size elements and rendered text; font size adjusts text independently. Changes apply immediately and are saved on this device.",
     );
 
-    spawn_interface_scale_row(commands, panel, "UI SCALE", settings.ui_scale(), 0, 1, options);
-    spawn_interface_scale_row(commands, panel, "FONT SIZE", settings.font_scale(), 2, 3, options);
+    spawn_interface_scale_row(
+        commands,
+        panel,
+        "UI SCALE",
+        settings.ui_scale(),
+        0,
+        1,
+        options,
+    );
+    spawn_interface_scale_row(
+        commands,
+        panel,
+        "FONT SIZE",
+        settings.font_scale(),
+        2,
+        3,
+        options,
+    );
 
     spawn_option_button(commands, panel, 4, "Reset defaults", options.selected == 4);
     spawn_option_button(commands, panel, 5, "Back", options.selected == 5);
@@ -782,17 +798,35 @@ fn spawn_interface_scale_row(
     increase_index: usize,
     options: &OptionsState,
 ) {
-    bevy_presentation::spawn_muted_label(commands, panel, format!("{label}: {:.0}%", value * 100.0));
-    let row = commands.spawn(Node {
-        width: percent(100),
-        flex_direction: FlexDirection::Row,
-        column_gap: bevy_presentation::responsive_compact_gap(),
-        align_items: AlignItems::Center,
-        ..default()
-    }).id();
+    bevy_presentation::spawn_muted_label(
+        commands,
+        panel,
+        format!("{label}: {:.0}%", value * 100.0),
+    );
+    let row = commands
+        .spawn(Node {
+            width: percent(100),
+            flex_direction: FlexDirection::Row,
+            column_gap: bevy_presentation::responsive_compact_gap(),
+            align_items: AlignItems::Center,
+            ..default()
+        })
+        .id();
     commands.entity(panel).add_child(row);
-    spawn_adjustment_button(commands, row, decrease_index, "−", options.selected == decrease_index);
-    spawn_adjustment_button(commands, row, increase_index, "+", options.selected == increase_index);
+    spawn_adjustment_button(
+        commands,
+        row,
+        decrease_index,
+        "−",
+        options.selected == decrease_index,
+    );
+    spawn_adjustment_button(
+        commands,
+        row,
+        increase_index,
+        "+",
+        options.selected == increase_index,
+    );
 }
 
 fn spawn_adjustment_button(

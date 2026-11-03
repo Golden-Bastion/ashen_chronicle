@@ -46,8 +46,7 @@ impl UiSettings {
     }
 
     pub(crate) fn save(&self) -> io::Result<()> {
-        let serialized = serde_json::to_vec_pretty(&self.sanitized())
-            .map_err(io::Error::other)?;
+        let serialized = serde_json::to_vec_pretty(&self.sanitized()).map_err(io::Error::other)?;
         let path = Self::path();
         let mut file = AtomicWriteFile::open(path.as_path())?;
         file.write_all(&serialized)?;
