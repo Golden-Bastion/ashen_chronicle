@@ -3,6 +3,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
+#[cfg(not(target_os = "android"))]
 pub const GAME_DIRECTORY_NAME: &str = "The Ashen Chronicle";
 pub const SAVES_DIRECTORY_NAME: &str = "saves";
 pub const MODS_DIRECTORY_NAME: &str = "mods";
