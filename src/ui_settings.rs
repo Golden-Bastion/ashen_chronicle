@@ -371,30 +371,36 @@ mod tests {
         assert_eq!(square.height, Val::Px(expected_touch_size));
         assert_eq!(square.min_height, Val::Px(expected_touch_size));
 
-        world
-            .resource_mut::<UiSettings>()
-            .adjust_ui_scale(SETTING_STEP);
-        world
-            .resource_mut::<UiSettings>()
-            .adjust_font_size(-SETTING_STEP);
+        for _ in 0..10 {
+            assert!(
+                world
+                    .resource_mut::<UiSettings>()
+                    .adjust_ui_scale(SETTING_STEP)
+            );
+        }
+        assert!(
+            world
+                .resource_mut::<UiSettings>()
+                .adjust_font_size(-SETTING_STEP)
+        );
         let late_layout_node = world.spawn((Node::default(), EmSize(1.0))).id();
         world.get_mut::<Window>(window).unwrap().resolution = (1920, 1080).into();
         schedule.run(&mut world);
 
         let resized_viewport_em = 1080.0 * BASE_REM_VMIN_PERCENT;
-        assert!((world.resource::<UiScale>().0 - 0.80).abs() < f32::EPSILON);
+        assert!((world.resource::<UiScale>().0 - 1.25).abs() < f32::EPSILON);
         assert!((world.resource::<RemSize>().0 - resized_viewport_em * 1.45).abs() < 0.01);
         assert!(
-            (world.get::<EmSize>(layout_node).unwrap().0 - resized_viewport_em * 0.80).abs() < 0.01
+            (world.get::<EmSize>(layout_node).unwrap().0 - resized_viewport_em * 1.25).abs() < 0.01
         );
         assert!(
-            (world.get::<EmSize>(late_layout_node).unwrap().0 - resized_viewport_em * 0.80).abs()
+            (world.get::<EmSize>(late_layout_node).unwrap().0 - resized_viewport_em * 1.25).abs()
                 < 0.01
         );
         assert!((world.get::<EmSize>(text_node).unwrap().0 - 20.0).abs() < 0.01);
 
         let resized_touch_scale = if cfg!(target_os = "android") {
-            0.80
+            1.25
         } else {
             1.0
         };
