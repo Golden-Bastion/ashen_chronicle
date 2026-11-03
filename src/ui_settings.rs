@@ -78,12 +78,12 @@ impl UiSettings {
     }
 
     pub(crate) fn adjust_ui_scale(&mut self, delta: i16) -> bool {
-        let next = i16::from(self.ui_scale_percent)
-            .saturating_add(delta)
-            .clamp(
-                i16::from(MIN_UI_SCALE_PERCENT),
-                i16::from(MAX_UI_SCALE_PERCENT),
-            ) as u8;
+        let next = adjusted_percent(
+            self.ui_scale_percent,
+            delta,
+            MIN_UI_SCALE_PERCENT,
+            MAX_UI_SCALE_PERCENT,
+        );
         if next == self.ui_scale_percent {
             return false;
         }
@@ -92,12 +92,12 @@ impl UiSettings {
     }
 
     pub(crate) fn adjust_font_size(&mut self, delta: i16) -> bool {
-        let next = i16::from(self.font_size_percent)
-            .saturating_add(delta)
-            .clamp(
-                i16::from(MIN_FONT_SIZE_PERCENT),
-                i16::from(MAX_FONT_SIZE_PERCENT),
-            ) as u8;
+        let next = adjusted_percent(
+            self.font_size_percent,
+            delta,
+            MIN_FONT_SIZE_PERCENT,
+            MAX_FONT_SIZE_PERCENT,
+        );
         if next == self.font_size_percent {
             return false;
         }
@@ -117,6 +117,12 @@ impl UiSettings {
             .font_size_percent
             .clamp(MIN_FONT_SIZE_PERCENT, MAX_FONT_SIZE_PERCENT);
     }
+}
+
+fn adjusted_percent(current: u8, delta: i16, minimum: u8, maximum: u8) -> u8 {
+    i16::from(current)
+        .saturating_add(delta)
+        .clamp(i16::from(minimum), i16::from(maximum)) as u8
 }
 
 fn settings_path() -> std::path::PathBuf {
