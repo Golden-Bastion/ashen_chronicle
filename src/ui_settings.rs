@@ -126,7 +126,7 @@ pub(crate) fn install(app: &mut App) {
 
 fn apply_ui_settings(
     settings: Res<UiSettings>,
-    window: Single<&Window, With<PrimaryWindow>>,
+    window: Single<&Window, With<bevy::window::PrimaryWindow>>,
     mut ui_scale: ResMut<UiScale>,
     mut rem_size: ResMut<RemSize>,
     mut em_sizes: Query<&mut EmSize, Without<TextFont>>,
