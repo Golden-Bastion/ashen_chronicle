@@ -372,17 +372,13 @@ mod tests {
         assert_eq!(square.min_height, Val::Px(expected_touch_size));
 
         for _ in 0..10 {
-            assert!(
-                world
-                    .resource_mut::<UiSettings>()
-                    .adjust_ui_scale(SETTING_STEP)
-            );
-        }
-        assert!(
-            world
+            assert!(world
                 .resource_mut::<UiSettings>()
-                .adjust_font_size(-SETTING_STEP)
-        );
+                .adjust_ui_scale(SETTING_STEP));
+        }
+        assert!(world
+            .resource_mut::<UiSettings>()
+            .adjust_font_size(-SETTING_STEP));
         let late_layout_node = world.spawn((Node::default(), EmSize(1.0))).id();
         world.get_mut::<Window>(window).unwrap().resolution = (1920, 1080).into();
         schedule.run(&mut world);
