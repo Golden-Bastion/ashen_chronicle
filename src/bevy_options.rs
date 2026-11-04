@@ -809,11 +809,7 @@ fn render_interface_tab(
             "−",
             options.selected == decrease,
         );
-        bevy_presentation::spawn_option_value(
-            commands,
-            row.controls,
-            format!("{value}%"),
-        );
+        bevy_presentation::spawn_option_value(commands, row.controls, format!("{value}%"));
         spawn_option_control_button(
             commands,
             row.controls,

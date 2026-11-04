@@ -2095,9 +2095,7 @@ mod tests {
             .collect::<Vec<_>>();
         assert_eq!(children, vec![slots.label, slots.controls]);
         assert!(world.get::<OptionRowLabelSlot>(slots.label).is_some());
-        assert!(world
-            .get::<OptionRowControlsSlot>(slots.controls)
-            .is_some());
+        assert!(world.get::<OptionRowControlsSlot>(slots.controls).is_some());
     }
 
     #[test]
