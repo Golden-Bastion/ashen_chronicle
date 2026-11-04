@@ -20,6 +20,11 @@ const MOD_DELETE_ACTION: usize = 1;
 const MOD_PRIORITY_UP_ACTION: usize = 2;
 const MOD_PRIORITY_DOWN_ACTION: usize = 3;
 
+struct SaveEntry {
+    path: PathBuf,
+    metadata: Option<crate::persistence::SaveMetadata>,
+}
+
 fn mod_action_start_index(mod_index: usize) -> usize {
     mod_index * MOD_ACTIONS_PER_MOD
 }
@@ -39,7 +44,7 @@ pub(crate) struct OptionsState {
     message: Option<String>,
     active: bool,
     dirty: bool,
-    saves: Vec<PathBuf>,
+    saves: Vec<SaveEntry>,
     mods: Vec<InstalledMod>,
     pending_restart: bool,
     pending_remove_id: Option<String>,
@@ -111,11 +116,19 @@ fn sync_screen(
 
 fn refresh_catalogs(options: &mut OptionsState) {
     let paths = crate::game_paths::GamePaths::get();
-    options.saves = crate::persistence::find_save_files(&paths.saves_dir).unwrap_or_default();
+    let mut save_paths =
+        crate::persistence::find_save_files(&paths.saves_dir).unwrap_or_default();
     let legacy = crate::persistence::legacy_save_path(&paths.root);
-    if legacy.is_file() && !options.saves.iter().any(|path| path == &legacy) {
-        options.saves.push(legacy);
+    if legacy.is_file() && !save_paths.iter().any(|path| path == &legacy) {
+        save_paths.push(legacy);
     }
+    options.saves = save_paths
+        .into_iter()
+        .map(|path| SaveEntry {
+            metadata: crate::persistence::read_save_metadata(&path).ok(),
+            path,
+        })
+        .collect();
     options.mods = match crate::mod_manager::list_installed_mods() {
         Ok(mods) => mods,
         Err(error) => {
@@ -164,23 +177,24 @@ fn refresh_storage(
             }
             let result = match kind {
                 "save" if source.extension().and_then(|value| value.to_str()) == Some("save") => {
-                    crate::persistence::install_imported_save(&source).map(|_| ())
+                    crate::persistence::install_imported_save(&source).map(|_| None)
                 }
                 "mod" if source.extension().and_then(|value| value.to_str()) == Some("zip") => {
-                    crate::mod_manager::install_mod_archive(&source).map(|_| ())
+                    crate::mod_manager::install_mod_archive(&source)
+                        .map(|item| Some(item.manifest.name))
                 }
                 _ => continue,
             };
             options.processed_imports.insert(source.clone());
             match result {
-                Ok(()) => {
+                Ok(installed_mod_name) => {
                     let _ = std::fs::remove_file(&source);
-                    options.message = Some(if kind == "save" {
-                        "Save imported successfully.".to_string()
-                    } else {
+                    options.message = if let Some(name) = installed_mod_name {
                         options.pending_restart = true;
-                        "Mod installed. Restart the game to activate it.".to_string()
-                    });
+                        Some(format!("Installed {name}."))
+                    } else {
+                        Some("Save imported successfully.".to_string())
+                    };
                     changed = true;
                 }
                 Err(error) => {
@@ -295,7 +309,7 @@ fn activate_saves_action(
     gameplay: &GameplayState,
 ) {
     if options.selected < options.saves.len() {
-        let path = options.saves[options.selected].clone();
+        let path = options.saves[options.selected].path.clone();
         export_save(options, &path);
     } else if options.selected == options.saves.len() {
         import_save(options, lifecycle);
@@ -348,13 +362,18 @@ fn activate_mods_action(
         _ => return,
     };
 
+    let success_message = match action {
+        MOD_DELETE_ACTION => format!("Removed {}.", item.manifest.name),
+        MOD_PRIORITY_UP_ACTION | MOD_PRIORITY_DOWN_ACTION => {
+            format!("Updated priority for {}.", item.manifest.name)
+        }
+        _ => format!("Updated {}.", item.manifest.name),
+    };
+
     match result {
         Ok(()) => {
             options.pending_restart = true;
-            options.message = Some(format!(
-                "Updated {}. Restart the game to apply mod changes.",
-                item.manifest.name
-            ));
+            options.message = Some(success_message);
             refresh_catalogs(options);
         }
         Err(error) => {
@@ -491,10 +510,7 @@ fn import_mod(options: &mut OptionsState) {
         match crate::mod_manager::install_mod_archive(&source) {
             Ok(item) => {
                 options.pending_restart = true;
-                options.message = Some(format!(
-                    "Installed {}. Restart the game to activate it.",
-                    item.manifest.name
-                ));
+                options.message = Some(format!("Installed {}.", item.manifest.name));
                 refresh_catalogs(options);
             }
             Err(error) => options.message = Some(format!("Could not install mod: {error}")),
@@ -566,12 +582,6 @@ fn render_if_active(
         BorderColor::all(bevy_presentation::THEME_BORDER),
         BackgroundColor(bevy_presentation::THEME_SURFACE_STRONG),
     ));
-    bevy_presentation::spawn_muted_label(
-        &mut commands,
-        panel,
-        "Saves and mods are stored privately on this device. Use import/export to move them.",
-    );
-
     let tab_strip = commands
         .spawn(Node {
             width: percent(100),
@@ -654,18 +664,49 @@ fn render_saves_tab(commands: &mut Commands, list: Entity, options: &OptionsStat
     bevy_presentation::spawn_muted_label(
         commands,
         list,
-        "Export an existing save or import one from a file. Imports never overwrite an existing slot.",
+        "Imports never overwrite existing saves.",
     );
     if options.saves.is_empty() {
         bevy_presentation::spawn_muted_label(commands, list, "No saves found.");
     }
     for (index, save) in options.saves.iter().enumerate() {
-        let name = save
-            .file_name()
-            .map(|value| value.to_string_lossy().to_string())
-            .unwrap_or_else(|| save.display().to_string());
         let row = bevy_presentation::spawn_option_row(commands, list);
-        bevy_presentation::spawn_label(commands, row.label, name);
+        if let Some(metadata) = &save.metadata {
+            bevy_presentation::spawn_label(
+                commands,
+                row.label,
+                metadata.character_display_name.clone(),
+            );
+            let mod_summary = if metadata.mod_dependency_count == 1 {
+                "1 mod".to_string()
+            } else {
+                format!("{} mods", metadata.mod_dependency_count)
+            };
+            bevy_presentation::spawn_muted_label(
+                commands,
+                row.label,
+                format!(
+                    "Level {} · {} · Day {} · Format v{} · {}",
+                    metadata.character_level,
+                    metadata.world_name,
+                    metadata.world_day,
+                    metadata.save_file_version,
+                    mod_summary,
+                ),
+            );
+        } else {
+            let name = save
+                .path
+                .file_name()
+                .map(|value| value.to_string_lossy().to_string())
+                .unwrap_or_else(|| save.path.display().to_string());
+            bevy_presentation::spawn_label(commands, row.label, name);
+            bevy_presentation::spawn_muted_label(
+                commands,
+                row.label,
+                "Save metadata unavailable.",
+            );
+        }
         spawn_option_control_button(
             commands,
             row.controls,
@@ -696,11 +737,6 @@ fn render_saves_footer(commands: &mut Commands, footer: Entity, options: &Option
 
 fn render_mods_tab(commands: &mut Commands, list: Entity, options: &OptionsState) {
     bevy_presentation::spawn_label(commands, list, "MOD MANAGEMENT");
-    bevy_presentation::spawn_muted_label(
-        commands,
-        list,
-        "Enable or disable mods, adjust load priority, or remove installed mods. Changes require restart.",
-    );
     if options.mods.is_empty() {
         bevy_presentation::spawn_muted_label(commands, list, "No mods installed.");
     }
@@ -739,14 +775,14 @@ fn render_mods_tab(commands: &mut Commands, list: Entity, options: &OptionsState
             commands,
             row.controls,
             base + MOD_PRIORITY_UP_ACTION,
-            "Up",
+            "Priority↑",
             options.selected == base + MOD_PRIORITY_UP_ACTION,
         );
         spawn_option_control_button(
             commands,
             row.controls,
             base + MOD_PRIORITY_DOWN_ACTION,
-            "Down",
+            "Priority↓",
             options.selected == base + MOD_PRIORITY_DOWN_ACTION,
         );
     }
@@ -790,12 +826,6 @@ fn render_interface_tab(
     settings: &crate::ui_settings::UiSettings,
 ) {
     bevy_presentation::spawn_label(commands, list, "INTERFACE");
-    bevy_presentation::spawn_muted_label(
-        commands,
-        list,
-        "Adjust interface layout and text independently. Changes apply immediately and are saved on this device.",
-    );
-
     for (label, value, decrease, increase) in [
         ("UI scale", settings.ui_scale_percent(), 0, 1),
         ("Font size", settings.font_size_percent(), 2, 3),
@@ -806,7 +836,7 @@ fn render_interface_tab(
             commands,
             row.controls,
             decrease,
-            "−",
+            "-",
             options.selected == decrease,
         );
         bevy_presentation::spawn_option_value(commands, row.controls, format!("{value}%"));
