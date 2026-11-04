@@ -647,7 +647,6 @@ fn render_if_active(
         _ => {}
     }
     options.dirty = false;
-}    options.dirty = false;
 }
 
 fn render_saves_tab(commands: &mut Commands, list: Entity, options: &OptionsState) {
@@ -782,16 +781,6 @@ fn spawn_option_control_button(
     if selected {
         commands.entity(button).insert(UiSelected);
     }
-}
-
-fn spawn_option_button(
-    commands: &mut Commands,
-    parent: Entity,
-    index: usize,
-    label: impl Into<String>,
-    selected: bool,
-) {
-    spawn_option_control_button(commands, parent, index, label, selected);
 }
 
 fn render_interface_tab(
