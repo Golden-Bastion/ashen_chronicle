@@ -931,7 +931,9 @@ mod tests {
         assert_eq!(MOD_DELETE_ACTION, 1);
         assert_eq!(MOD_PRIORITY_UP_ACTION, 2);
         assert_eq!(MOD_PRIORITY_DOWN_ACTION, 3);
-        assert_eq!(second_mod_first_action, 5);
+        assert_eq!(second_mod_first_action, 4);
+        assert_eq!(mod_install_action_index(2), 8);
+        assert_eq!(mod_back_action_index(2), 9);
         assert_eq!(
             second_mod_first_action + MOD_PRIORITY_DOWN_ACTION,
             second_mod_first_action + MOD_ACTIONS_PER_MOD - 1
