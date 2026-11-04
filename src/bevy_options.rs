@@ -642,12 +642,7 @@ fn render_if_active(
     options.dirty = false;
 }
 
-fn render_saves_tab(
-    commands: &mut Commands,
-    list: Entity,
-    footer: Entity,
-    options: &OptionsState,
-) {
+fn render_saves_tab(commands: &mut Commands, list: Entity, footer: Entity, options: &OptionsState) {
     bevy_presentation::spawn_label(commands, list, "SAVES");
     bevy_presentation::spawn_muted_label(
         commands,
@@ -689,12 +684,7 @@ fn render_saves_tab(
     );
 }
 
-fn render_mods_tab(
-    commands: &mut Commands,
-    list: Entity,
-    footer: Entity,
-    options: &OptionsState,
-) {
+fn render_mods_tab(commands: &mut Commands, list: Entity, footer: Entity, options: &OptionsState) {
     bevy_presentation::spawn_label(commands, list, "MOD MANAGEMENT");
     bevy_presentation::spawn_muted_label(
         commands,
