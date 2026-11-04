@@ -116,8 +116,7 @@ fn sync_screen(
 
 fn refresh_catalogs(options: &mut OptionsState) {
     let paths = crate::game_paths::GamePaths::get();
-    let mut save_paths =
-        crate::persistence::find_save_files(&paths.saves_dir).unwrap_or_default();
+    let mut save_paths = crate::persistence::find_save_files(&paths.saves_dir).unwrap_or_default();
     let legacy = crate::persistence::legacy_save_path(&paths.root);
     if legacy.is_file() && !save_paths.iter().any(|path| path == &legacy) {
         save_paths.push(legacy);
@@ -661,11 +660,7 @@ fn render_if_active(
 
 fn render_saves_tab(commands: &mut Commands, list: Entity, options: &OptionsState) {
     bevy_presentation::spawn_label(commands, list, "SAVES");
-    bevy_presentation::spawn_muted_label(
-        commands,
-        list,
-        "Imports never overwrite existing saves.",
-    );
+    bevy_presentation::spawn_muted_label(commands, list, "Imports never overwrite existing saves.");
     if options.saves.is_empty() {
         bevy_presentation::spawn_muted_label(commands, list, "No saves found.");
     }
@@ -701,11 +696,7 @@ fn render_saves_tab(commands: &mut Commands, list: Entity, options: &OptionsStat
                 .map(|value| value.to_string_lossy().to_string())
                 .unwrap_or_else(|| save.path.display().to_string());
             bevy_presentation::spawn_label(commands, row.label, name);
-            bevy_presentation::spawn_muted_label(
-                commands,
-                row.label,
-                "Save metadata unavailable.",
-            );
+            bevy_presentation::spawn_muted_label(commands, row.label, "Save metadata unavailable.");
         }
         spawn_option_control_button(
             commands,
