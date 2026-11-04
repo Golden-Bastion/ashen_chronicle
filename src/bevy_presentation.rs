@@ -518,7 +518,6 @@ pub fn spawn_panel(commands: &mut Commands, parent: Entity) -> Entity {
     panel
 }
 
-
 fn fixed_panel_node() -> Node {
     Node {
         width: percent(100),
