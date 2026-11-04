@@ -518,6 +518,81 @@ pub fn spawn_panel(commands: &mut Commands, parent: Entity) -> Entity {
     panel
 }
 
+fn fixed_panel_node() -> Node {
+    Node {
+        width: percent(100),
+        min_width: px(0),
+        min_height: px(0),
+        flex_grow: 1.0,
+        flex_shrink: 1.0,
+        padding: UiRect::all(panel_padding()),
+        flex_direction: FlexDirection::Column,
+        row_gap: panel_gap(),
+        overflow: Overflow::clip(),
+        ..default()
+    }
+}
+
+/// Creates a fixed screen panel; only its dedicated list child should scroll.
+pub fn spawn_fixed_panel(commands: &mut Commands, parent: Entity) -> Entity {
+    let panel = commands
+        .spawn((
+            TabGroup::modal(),
+            fixed_panel_node(),
+            BackgroundColor(THEME_PANEL),
+        ))
+        .id();
+    commands.entity(parent).add_child(panel);
+    panel
+}
+
+fn scrollable_list_node() -> Node {
+    Node {
+        width: percent(100),
+        min_width: px(0),
+        min_height: px(0),
+        flex_grow: 1.0,
+        flex_shrink: 1.0,
+        flex_direction: FlexDirection::Column,
+        row_gap: panel_gap(),
+        overflow: Overflow::scroll(),
+        ..default()
+    }
+}
+
+/// Creates the only scrolling region inside a fixed Options-style panel.
+pub fn spawn_scrollable_list(commands: &mut Commands, parent: Entity) -> Entity {
+    let list = commands
+        .spawn((TouchScrollablePanel, scrollable_list_node()))
+        .id();
+    commands.entity(parent).add_child(list);
+    list
+}
+
+fn option_footer_node() -> Node {
+    Node {
+        width: percent(100),
+        min_width: px(0),
+        min_height: touch_target_size(),
+        flex_direction: FlexDirection::Row,
+        flex_wrap: FlexWrap::Wrap,
+        column_gap: responsive_compact_gap(),
+        row_gap: responsive_compact_gap(),
+        justify_content: JustifyContent::End,
+        align_items: AlignItems::Center,
+        flex_shrink: 0.0,
+        padding: UiRect::top(responsive_compact_gap()),
+        ..default()
+    }
+}
+
+/// Creates a non-scrolling footer below the option list.
+pub fn spawn_option_footer(commands: &mut Commands, parent: Entity) -> Entity {
+    let footer = commands.spawn(option_footer_node()).id();
+    commands.entity(parent).add_child(footer);
+    footer
+}
+
 fn standalone_label_node() -> Node {
     Node {
         width: percent(100),
@@ -812,6 +887,178 @@ fn action_button_node() -> Node {
         align_items: AlignItems::Center,
         ..default()
     }
+}
+
+/// The two content slots created by a shared Options/settings row.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct OptionRowSlots {
+    pub row: Entity,
+    pub label: Entity,
+    pub controls: Entity,
+}
+
+#[derive(Component)]
+struct OptionRowLabelSlot;
+
+#[derive(Component)]
+struct OptionRowControlsSlot;
+
+fn option_row_node() -> Node {
+    Node {
+        width: percent(100),
+        min_width: px(0),
+        min_height: touch_target_size(),
+        padding: UiRect::axes(responsive_surface_padding(), responsive_vmin(0.833)),
+        border: UiRect::all(px(1)),
+        flex_direction: FlexDirection::Row,
+        flex_wrap: FlexWrap::NoWrap,
+        column_gap: responsive_compact_gap(),
+        align_items: AlignItems::Center,
+        justify_content: JustifyContent::SpaceBetween,
+        ..default()
+    }
+}
+
+fn option_row_label_node() -> Node {
+    Node {
+        min_width: px(0),
+        flex_grow: 1.0,
+        flex_shrink: 1.0,
+        flex_direction: FlexDirection::Column,
+        row_gap: px(2),
+        align_items: AlignItems::Start,
+        ..default()
+    }
+}
+
+fn option_row_controls_node() -> Node {
+    Node {
+        min_width: px(0),
+        flex_shrink: 0.0,
+        flex_direction: FlexDirection::Row,
+        column_gap: responsive_compact_gap(),
+        align_items: AlignItems::Center,
+        justify_content: JustifyContent::End,
+        ..default()
+    }
+}
+
+fn compact_action_button_node() -> Node {
+    Node {
+        width: Val::Auto,
+        min_width: px(76),
+        max_width: px(180),
+        min_height: touch_target_size(),
+        flex_grow: 0.0,
+        flex_shrink: 0.0,
+        padding: UiRect::axes(
+            responsive_vmin(1.111),
+            responsive_vmin(UI_ACTION_PADDING_VERTICAL_VMIN),
+        ),
+        border: UiRect::all(px(1)),
+        justify_content: JustifyContent::Center,
+        align_items: AlignItems::Center,
+        ..default()
+    }
+}
+
+fn option_value_node() -> Node {
+    Node {
+        min_width: px(58),
+        min_height: touch_target_size(),
+        flex_shrink: 0.0,
+        justify_content: JustifyContent::Center,
+        align_items: AlignItems::Center,
+        ..default()
+    }
+}
+
+/// Creates the shared landscape option row: the option name stays on the left
+/// and its controls stay together on the right.
+pub fn spawn_option_row(commands: &mut Commands, parent: Entity) -> OptionRowSlots {
+    let row = commands
+        .spawn((
+            UiSurface,
+            option_row_node(),
+            BorderColor::all(THEME_BORDER),
+            BackgroundColor(THEME_SURFACE),
+        ))
+        .id();
+    let label = commands
+        .spawn((OptionRowLabelSlot, option_row_label_node()))
+        .id();
+    let controls = commands
+        .spawn((OptionRowControlsSlot, option_row_controls_node()))
+        .id();
+
+    commands.entity(row).add_child(label);
+    commands.entity(row).add_child(controls);
+    commands.entity(parent).add_child(row);
+
+    OptionRowSlots {
+        row,
+        label,
+        controls,
+    }
+}
+
+/// Adds a current setting value to the right-hand control group.
+pub fn spawn_option_value(
+    commands: &mut Commands,
+    parent: Entity,
+    text: impl Into<String>,
+) -> Entity {
+    let value = commands
+        .spawn((
+            Text::new(text.into()),
+            option_value_node(),
+            TextLayout::new(Justify::Center, LineBreak::WordOrCharacter),
+            TextContent,
+            TextFont::from_font_size(muted_font_size()),
+            TextColor(THEME_TEXT),
+        ))
+        .id();
+    commands.entity(parent).add_child(value);
+    value
+}
+
+/// Spawns a standard horizontal button for option rows and persistent footers.
+pub fn spawn_compact_action_button(
+    commands: &mut Commands,
+    parent: Entity,
+    index: usize,
+    label: impl Into<String>,
+) -> Entity {
+    let button = commands
+        .spawn((
+            Button,
+            Hovered::default(),
+            UiTouchTargetShape::MinimumBounds {
+                width: UI_TOUCH_TARGET_PX as u16,
+                height: UI_TOUCH_TARGET_PX as u16,
+            },
+            ChoiceButton { index },
+            UiActionButton,
+            UiStyledButton,
+            compact_action_button_node(),
+            BorderColor::all(THEME_BORDER),
+            BackgroundColor(THEME_SURFACE),
+            children![(
+                Text::new(label.into()),
+                Node {
+                    min_width: px(52),
+                    max_width: percent(100),
+                    ..default()
+                },
+                TextLayout::new(Justify::Center, LineBreak::WordOrCharacter),
+                TextContent,
+                TextFont::from_font_size(muted_font_size()),
+                TextColor(THEME_TEXT),
+            )],
+        ))
+        .id();
+    commands.entity(parent).add_child(button);
+    button
 }
 
 #[derive(Component)]
@@ -1794,6 +2041,95 @@ mod tests {
         assert_eq!(node.flex_grow, 0.0);
         assert_eq!(node.flex_shrink, 0.0);
         assert_eq!(node.min_height, touch_target_size());
+    }
+
+    #[test]
+    fn option_rows_keep_labels_left_and_controls_right() {
+        let label = option_row_label_node();
+        let controls = option_row_controls_node();
+        let row = option_row_node();
+        assert_eq!(label.flex_grow, 1.0);
+        assert_eq!(label.align_items, AlignItems::Start);
+        assert_eq!(controls.justify_content, JustifyContent::End);
+        assert_eq!(row.flex_direction, FlexDirection::Row);
+        assert_eq!(row.flex_wrap, FlexWrap::NoWrap);
+    }
+
+    #[test]
+    fn options_scroll_region_is_separate_from_fixed_panel_and_footer() {
+        let panel = fixed_panel_node();
+        let list = scrollable_list_node();
+        let footer = option_footer_node();
+        assert_eq!(panel.flex_grow, 1.0);
+        assert_eq!(panel.min_height, px(0));
+        assert_eq!(panel.overflow, Overflow::clip());
+        assert_eq!(list.flex_grow, 1.0);
+        assert_eq!(list.min_height, px(0));
+        assert_eq!(list.overflow, Overflow::scroll());
+        assert_eq!(footer.flex_shrink, 0.0);
+        assert_eq!(footer.flex_direction, FlexDirection::Row);
+        assert_eq!(footer.justify_content, JustifyContent::End);
+    }
+
+    #[test]
+    fn option_rows_create_label_then_right_aligned_controls() {
+        #[derive(Resource)]
+        struct Fixture(OptionRowSlots);
+
+        fn setup(mut commands: Commands) {
+            let parent = commands.spawn_empty().id();
+            let row = spawn_option_row(&mut commands, parent);
+            commands.insert_resource(Fixture(row));
+        }
+
+        let mut world = World::new();
+        let mut schedule = Schedule::default();
+        schedule.add_systems(setup);
+        schedule.run(&mut world);
+
+        let slots = world.resource::<Fixture>().0;
+        let children = world
+            .get::<Children>(slots.row)
+            .unwrap()
+            .iter()
+            .collect::<Vec<_>>();
+        assert_eq!(children, vec![slots.label, slots.controls]);
+        assert!(world.get::<OptionRowLabelSlot>(slots.label).is_some());
+        assert!(world.get::<OptionRowControlsSlot>(slots.controls).is_some());
+    }
+
+    #[test]
+    fn compact_action_buttons_keep_touch_sized_bounds_without_filling_the_row() {
+        #[derive(Resource)]
+        struct Fixture(Entity);
+
+        fn setup(mut commands: Commands) {
+            let parent = commands.spawn_empty().id();
+            let button = spawn_compact_action_button(&mut commands, parent, 7, "−5%");
+            commands.insert_resource(Fixture(button));
+        }
+
+        let node = compact_action_button_node();
+        assert_eq!(node.width, Val::Auto);
+        assert_eq!(node.min_width, px(76));
+        assert_eq!(node.max_width, px(180));
+        assert_eq!(node.min_height, touch_target_size());
+        assert_eq!(node.flex_grow, 0.0);
+        assert_eq!(node.flex_shrink, 0.0);
+
+        let mut world = World::new();
+        let mut schedule = Schedule::default();
+        schedule.add_systems(setup);
+        schedule.run(&mut world);
+        let button = world.resource::<Fixture>().0;
+        assert_eq!(
+            world.get::<UiTouchTargetShape>(button),
+            Some(&UiTouchTargetShape::MinimumBounds {
+                width: UI_TOUCH_TARGET_PX as u16,
+                height: UI_TOUCH_TARGET_PX as u16,
+            })
+        );
+        assert_eq!(world.get::<ChoiceButton>(button).unwrap().index, 7);
     }
 
     #[test]

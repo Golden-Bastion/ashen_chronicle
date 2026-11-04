@@ -15,9 +15,21 @@ use crate::input::InputEvent;
 use crate::mod_manager::InstalledMod;
 
 const MOD_ACTIONS_PER_MOD: usize = 4;
+const MOD_ENABLE_ACTION: usize = 0;
+const MOD_DELETE_ACTION: usize = 1;
+const MOD_PRIORITY_UP_ACTION: usize = 2;
+const MOD_PRIORITY_DOWN_ACTION: usize = 3;
 
 fn mod_action_start_index(mod_index: usize) -> usize {
-    1 + mod_index * MOD_ACTIONS_PER_MOD
+    mod_index * MOD_ACTIONS_PER_MOD
+}
+
+fn mod_install_action_index(mod_count: usize) -> usize {
+    mod_count * MOD_ACTIONS_PER_MOD
+}
+
+fn mod_back_action_index(mod_count: usize) -> usize {
+    mod_install_action_index(mod_count) + 1
 }
 
 #[derive(Resource)]
@@ -270,7 +282,7 @@ fn options_input(
 fn options_selection_end(options: &OptionsState) -> usize {
     match options.tab {
         0 => options.saves.len() + 1,
-        1 => mod_action_start_index(options.mods.len()),
+        1 => mod_back_action_index(options.mods.len()),
         2 => 5,
         _ => 0,
     }
@@ -282,11 +294,11 @@ fn activate_saves_action(
     navigation: &mut NavigationState,
     gameplay: &GameplayState,
 ) {
-    if options.selected == 0 {
-        import_save(options, lifecycle);
-    } else if options.selected <= options.saves.len() {
-        let path = options.saves[options.selected - 1].clone();
+    if options.selected < options.saves.len() {
+        let path = options.saves[options.selected].clone();
         export_save(options, &path);
+    } else if options.selected == options.saves.len() {
+        import_save(options, lifecycle);
     } else {
         close_options(lifecycle, navigation, options, gameplay);
     }
@@ -298,40 +310,40 @@ fn activate_mods_action(
     navigation: &mut NavigationState,
     gameplay: &GameplayState,
 ) {
-    if options.selected == 0 {
+    if options.selected == mod_install_action_index(options.mods.len()) {
         import_mod(options);
         return;
     }
-    if options.selected == options_selection_end(options) {
+    if options.selected == mod_back_action_index(options.mods.len()) {
         close_options(lifecycle, navigation, options, gameplay);
         return;
     }
-    let action_index = options.selected - 1;
-    let mod_index = action_index / MOD_ACTIONS_PER_MOD;
-    let action = action_index % MOD_ACTIONS_PER_MOD;
+
+    let mod_index = options.selected / MOD_ACTIONS_PER_MOD;
+    let action = options.selected % MOD_ACTIONS_PER_MOD;
     let Some(item) = options.mods.get(mod_index).cloned() else {
         return;
     };
 
     let result = match action {
-        0 => crate::mod_manager::set_mod_enabled(&item.manifest.id, !item.enabled),
-        1 => {
-            crate::mod_manager::set_mod_priority(&item.manifest.id, item.priority.saturating_sub(1))
-        }
-        2 => {
-            crate::mod_manager::set_mod_priority(&item.manifest.id, item.priority.saturating_add(1))
-        }
-        3 => {
+        MOD_ENABLE_ACTION => crate::mod_manager::set_mod_enabled(&item.manifest.id, !item.enabled),
+        MOD_DELETE_ACTION => {
             if options.pending_remove_id.as_deref() != Some(item.manifest.id.as_str()) {
                 options.pending_remove_id = Some(item.manifest.id.clone());
                 options.message = Some(format!(
-                    "Select Remove again to permanently remove {}.",
+                    "Select Confirm again to permanently remove {}.",
                     item.manifest.name
                 ));
                 return;
             }
             options.pending_remove_id = None;
             crate::mod_manager::remove_mod(&item.manifest.id)
+        }
+        MOD_PRIORITY_UP_ACTION => {
+            crate::mod_manager::set_mod_priority(&item.manifest.id, item.priority.saturating_add(1))
+        }
+        MOD_PRIORITY_DOWN_ACTION => {
+            crate::mod_manager::set_mod_priority(&item.manifest.id, item.priority.saturating_sub(1))
         }
         _ => return,
     };
@@ -548,7 +560,7 @@ fn render_if_active(
     }
 
     let root = bevy_presentation::spawn_screen(&mut commands, "OPTIONS");
-    let panel = bevy_presentation::spawn_panel(&mut commands, root);
+    let panel = bevy_presentation::spawn_fixed_panel(&mut commands, root);
     commands.entity(panel).insert((
         bevy_presentation::UiSurface,
         BorderColor::all(bevy_presentation::THEME_BORDER),
@@ -568,6 +580,7 @@ fn render_if_active(
             flex_wrap: FlexWrap::Wrap,
             column_gap: bevy_presentation::responsive_compact_gap(),
             row_gap: px(4),
+            flex_shrink: 0.0,
             ..default()
         })
         .id();
@@ -582,12 +595,14 @@ fn render_if_active(
                 bevy_presentation::UiTabButton { index },
                 bevy_presentation::UiStyledButton,
                 Node {
+                    width: Val::Auto,
                     min_width: px(100),
                     min_height: bevy_presentation::touch_target_size(),
                     padding: UiRect::axes(bevy_presentation::responsive_surface_padding(), px(6)),
                     border: UiRect::all(px(1)),
                     justify_content: JustifyContent::Center,
                     align_items: AlignItems::Center,
+                    flex_shrink: 0.0,
                     ..default()
                 },
                 BorderColor::all(bevy_presentation::THEME_BORDER),
@@ -605,10 +620,11 @@ fn render_if_active(
         }
     });
 
+    let list = bevy_presentation::spawn_scrollable_list(&mut commands, panel);
     match options.tab {
-        0 => render_saves_tab(&mut commands, panel, &options),
-        1 => render_mods_tab(&mut commands, panel, &options),
-        2 => render_interface_tab(&mut commands, panel, &options, &ui_settings),
+        0 => render_saves_tab(&mut commands, list, &options),
+        1 => render_mods_tab(&mut commands, list, &options),
+        2 => render_interface_tab(&mut commands, list, &options, &ui_settings),
         _ => {}
     }
 
@@ -622,119 +638,146 @@ fn render_if_active(
     if let Some(message) = &options.message {
         bevy_presentation::spawn_context_message(&mut commands, panel, message);
     }
+
+    let footer = bevy_presentation::spawn_option_footer(&mut commands, panel);
+    match options.tab {
+        0 => render_saves_footer(&mut commands, footer, &options),
+        1 => render_mods_footer(&mut commands, footer, &options),
+        2 => render_interface_footer(&mut commands, footer, &options),
+        _ => {}
+    }
     options.dirty = false;
 }
 
-fn render_saves_tab(commands: &mut Commands, panel: Entity, options: &OptionsState) {
-    bevy_presentation::spawn_label(commands, panel, "SAVES");
+fn render_saves_tab(commands: &mut Commands, list: Entity, options: &OptionsState) {
+    bevy_presentation::spawn_label(commands, list, "SAVES");
     bevy_presentation::spawn_muted_label(
         commands,
-        panel,
-        "Import a save from a file or export an existing save. Imports never overwrite an existing slot.",
+        list,
+        "Export an existing save or import one from a file. Imports never overwrite an existing slot.",
     );
-    spawn_option_button(commands, panel, 0, "Import save", options.selected == 0);
+    if options.saves.is_empty() {
+        bevy_presentation::spawn_muted_label(commands, list, "No saves found.");
+    }
     for (index, save) in options.saves.iter().enumerate() {
         let name = save
             .file_name()
             .map(|value| value.to_string_lossy().to_string())
             .unwrap_or_else(|| save.display().to_string());
-        spawn_option_button(
+        let row = bevy_presentation::spawn_option_row(commands, list);
+        bevy_presentation::spawn_label(commands, row.label, name);
+        spawn_option_control_button(
             commands,
-            panel,
-            index + 1,
-            format!("Export: {name}"),
-            options.selected == index + 1,
+            row.controls,
+            index,
+            "Export",
+            options.selected == index,
         );
     }
-    spawn_option_button(
+}
+
+fn render_saves_footer(commands: &mut Commands, footer: Entity, options: &OptionsState) {
+    let import_index = options.saves.len();
+    spawn_option_control_button(
         commands,
-        panel,
-        options.saves.len() + 1,
+        footer,
+        import_index,
+        "Import save",
+        options.selected == import_index,
+    );
+    spawn_option_control_button(
+        commands,
+        footer,
+        import_index + 1,
         "Back",
-        options.selected == options.saves.len() + 1,
+        options.selected == import_index + 1,
     );
 }
 
-fn render_mods_tab(commands: &mut Commands, panel: Entity, options: &OptionsState) {
-    bevy_presentation::spawn_label(commands, panel, "MOD MANAGEMENT");
+fn render_mods_tab(commands: &mut Commands, list: Entity, options: &OptionsState) {
+    bevy_presentation::spawn_label(commands, list, "MOD MANAGEMENT");
     bevy_presentation::spawn_muted_label(
         commands,
-        panel,
-        "Install ZIP packages, enable or disable mods, adjust load priority, or remove installed mods. Changes require restart.",
+        list,
+        "Enable or disable mods, adjust load priority, or remove installed mods. Changes require restart.",
     );
-    spawn_option_button(commands, panel, 0, "Install mod ZIP", options.selected == 0);
     if options.mods.is_empty() {
-        bevy_presentation::spawn_muted_label(commands, panel, "No mods installed.");
+        bevy_presentation::spawn_muted_label(commands, list, "No mods installed.");
     }
     for (mod_index, item) in options.mods.iter().enumerate() {
+        let row = bevy_presentation::spawn_option_row(commands, list);
+        bevy_presentation::spawn_label(commands, row.label, &item.manifest.name);
         bevy_presentation::spawn_muted_label(
             commands,
-            panel,
+            row.label,
             format!(
-                "{} | id={} | version={} | priority={} | assets={}",
-                item.manifest.name,
-                item.manifest.id,
-                item.manifest.version,
-                item.priority,
-                item.asset_count
+                "id={} · version={} · priority={} · assets={}",
+                item.manifest.id, item.manifest.version, item.priority, item.asset_count
             ),
         );
+
         let base = mod_action_start_index(mod_index);
-        spawn_option_button(
+        spawn_option_control_button(
             commands,
-            panel,
-            base,
-            format!(
-                "{}: {}",
-                if item.enabled { "Disable" } else { "Enable" },
-                item.manifest.name
-            ),
-            options.selected == base,
+            row.controls,
+            base + MOD_ENABLE_ACTION,
+            if item.enabled { "Disable" } else { "Enable" },
+            options.selected == base + MOD_ENABLE_ACTION,
         );
-        spawn_option_button(
+        spawn_option_control_button(
             commands,
-            panel,
-            base + 1,
-            format!("Lower priority: {}", item.manifest.name),
-            options.selected == base + 1,
-        );
-        spawn_option_button(
-            commands,
-            panel,
-            base + 2,
-            format!("Raise priority: {}", item.manifest.name),
-            options.selected == base + 2,
-        );
-        spawn_option_button(
-            commands,
-            panel,
-            base + 3,
+            row.controls,
+            base + MOD_DELETE_ACTION,
             if options.pending_remove_id.as_deref() == Some(item.manifest.id.as_str()) {
-                format!("Confirm remove: {}", item.manifest.name)
+                "Confirm"
             } else {
-                format!("Remove: {}", item.manifest.name)
+                "Delete"
             },
-            options.selected == base + 3,
+            options.selected == base + MOD_DELETE_ACTION,
+        );
+        spawn_option_control_button(
+            commands,
+            row.controls,
+            base + MOD_PRIORITY_UP_ACTION,
+            "Up",
+            options.selected == base + MOD_PRIORITY_UP_ACTION,
+        );
+        spawn_option_control_button(
+            commands,
+            row.controls,
+            base + MOD_PRIORITY_DOWN_ACTION,
+            "Down",
+            options.selected == base + MOD_PRIORITY_DOWN_ACTION,
         );
     }
-    let back_index = mod_action_start_index(options.mods.len());
-    spawn_option_button(
+}
+
+fn render_mods_footer(commands: &mut Commands, footer: Entity, options: &OptionsState) {
+    let install_index = mod_install_action_index(options.mods.len());
+    spawn_option_control_button(
         commands,
-        panel,
-        back_index,
+        footer,
+        install_index,
+        "Install mod ZIP",
+        options.selected == install_index,
+    );
+    spawn_option_control_button(
+        commands,
+        footer,
+        install_index + 1,
         "Back",
-        options.selected == back_index,
+        options.selected == install_index + 1,
     );
 }
 
-fn spawn_option_button(
+fn spawn_option_control_button(
     commands: &mut Commands,
-    panel: Entity,
+    parent: Entity,
     index: usize,
     label: impl Into<String>,
     selected: bool,
 ) {
-    let button = bevy_presentation::spawn_action_button(commands, panel, index, "storage", label);
+    let button = bevy_presentation::spawn_compact_action_button(commands, parent, index, label);
     if selected {
         commands.entity(button).insert(UiSelected);
     }
@@ -742,50 +785,44 @@ fn spawn_option_button(
 
 fn render_interface_tab(
     commands: &mut Commands,
-    panel: Entity,
+    list: Entity,
     options: &OptionsState,
     settings: &crate::ui_settings::UiSettings,
 ) {
-    bevy_presentation::spawn_label(commands, panel, "INTERFACE");
+    bevy_presentation::spawn_label(commands, list, "INTERFACE");
     bevy_presentation::spawn_muted_label(
         commands,
-        panel,
+        list,
         "Adjust interface layout and text independently. Changes apply immediately and are saved on this device.",
     );
 
-    bevy_presentation::spawn_muted_label(
-        commands,
-        panel,
-        format!("UI scale: {}%", settings.ui_scale_percent()),
-    );
-    for (index, label) in [(0, "Decrease UI scale"), (1, "Increase UI scale")] {
-        let button =
-            bevy_presentation::spawn_action_button(commands, panel, index, "display", label);
-        if options.selected == index {
-            commands.entity(button).insert(UiSelected);
-        }
+    for (label, value, decrease, increase) in [
+        ("UI scale", settings.ui_scale_percent(), 0, 1),
+        ("Font size", settings.font_size_percent(), 2, 3),
+    ] {
+        let row = bevy_presentation::spawn_option_row(commands, list);
+        bevy_presentation::spawn_label(commands, row.label, label);
+        spawn_option_control_button(
+            commands,
+            row.controls,
+            decrease,
+            "−",
+            options.selected == decrease,
+        );
+        bevy_presentation::spawn_option_value(commands, row.controls, format!("{value}%"));
+        spawn_option_control_button(
+            commands,
+            row.controls,
+            increase,
+            "+",
+            options.selected == increase,
+        );
     }
+}
 
-    bevy_presentation::spawn_muted_label(
-        commands,
-        panel,
-        format!("Font size: {}%", settings.font_size_percent()),
-    );
-    for (index, label) in [(2, "Decrease font size"), (3, "Increase font size")] {
-        let button =
-            bevy_presentation::spawn_action_button(commands, panel, index, "display", label);
-        if options.selected == index {
-            commands.entity(button).insert(UiSelected);
-        }
-    }
-
-    for (index, label) in [(4, "Reset interface settings"), (5, "Back")] {
-        let icon = if index == 5 { "back" } else { "display" };
-        let button = bevy_presentation::spawn_action_button(commands, panel, index, icon, label);
-        if options.selected == index {
-            commands.entity(button).insert(UiSelected);
-        }
-    }
+fn render_interface_footer(commands: &mut Commands, footer: Entity, options: &OptionsState) {
+    spawn_option_control_button(commands, footer, 4, "Reset", options.selected == 4);
+    spawn_option_control_button(commands, footer, 5, "Back", options.selected == 5);
 }
 
 #[cfg(target_os = "android")]
@@ -873,10 +910,18 @@ mod tests {
     }
 
     #[test]
-    fn mod_action_slots_are_stable() {
+    fn mod_action_slots_match_the_row_control_order() {
         let second_mod_first_action = mod_action_start_index(1);
-        let second_mod_last_action = second_mod_first_action + MOD_ACTIONS_PER_MOD - 1;
-        assert_eq!(second_mod_first_action, 5);
-        assert_eq!(second_mod_last_action, 8);
+        assert_eq!(MOD_ENABLE_ACTION, 0);
+        assert_eq!(MOD_DELETE_ACTION, 1);
+        assert_eq!(MOD_PRIORITY_UP_ACTION, 2);
+        assert_eq!(MOD_PRIORITY_DOWN_ACTION, 3);
+        assert_eq!(second_mod_first_action, 4);
+        assert_eq!(mod_install_action_index(2), 8);
+        assert_eq!(mod_back_action_index(2), 9);
+        assert_eq!(
+            second_mod_first_action + MOD_PRIORITY_DOWN_ACTION,
+            second_mod_first_action + MOD_ACTIONS_PER_MOD - 1
+        );
     }
 }
