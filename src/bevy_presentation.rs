@@ -2112,6 +2112,7 @@ mod tests {
         let node = compact_action_button_node();
         assert_eq!(node.width, Val::Auto);
         assert_eq!(node.min_width, px(76));
+        assert_eq!(node.max_width, px(180));
         assert_eq!(node.min_height, touch_target_size());
         assert_eq!(node.flex_grow, 0.0);
         assert_eq!(node.flex_shrink, 0.0);
