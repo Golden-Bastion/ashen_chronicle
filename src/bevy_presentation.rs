@@ -1199,6 +1199,98 @@ pub fn spawn_action_button(
     button
 }
 
+pub fn spawn_action_button_with_detail(
+    commands: &mut Commands,
+    parent: Entity,
+    index: usize,
+    icon: impl Into<String>,
+    label: impl Into<String>,
+    detail: impl Into<String>,
+) -> Entity {
+    let label = label.into();
+    let detail = detail.into();
+    let button = commands
+        .spawn((
+            Button,
+            Hovered::default(),
+            UiTouchTargetShape::MinimumHeight,
+            ChoiceButton { index },
+            UiActionButton,
+            UiStackedActionButton,
+            UiStyledButton,
+            action_button_node(),
+            BorderColor::all(THEME_BORDER),
+            BackgroundColor(THEME_SURFACE),
+            children![(
+                Node {
+                    width: percent(100),
+                    min_width: px(0),
+                    max_width: percent(100),
+                    flex_direction: FlexDirection::Row,
+                    column_gap: responsive_compact_gap(),
+                    align_items: AlignItems::Center,
+                    ..default()
+                },
+                children![
+                    (
+                        Node {
+                            width: px(22),
+                            height: px(22),
+                            min_width: px(22),
+                            min_height: px(22),
+                            flex_shrink: 0.0,
+                            ..default()
+                        },
+                        UiIconName(icon.into()),
+                    ),
+                    (
+                        Node {
+                            width: percent(100),
+                            min_width: px(0),
+                            max_width: percent(100),
+                            flex_grow: 1.0,
+                            flex_shrink: 1.0,
+                            flex_direction: FlexDirection::Column,
+                            row_gap: px(2),
+                            ..default()
+                        },
+                        children![
+                            (
+                                Text::new(label),
+                                Node {
+                                    width: percent(100),
+                                    min_width: px(0),
+                                    max_width: percent(100),
+                                    ..default()
+                                },
+                                TextLayout::new(Justify::Left, LineBreak::WordOrCharacter),
+                                TextContent,
+                                TextFont::from_font_size(label_font_size()),
+                                TextColor(THEME_TEXT),
+                            ),
+                            (
+                                Text::new(detail),
+                                Node {
+                                    width: percent(100),
+                                    min_width: px(0),
+                                    max_width: percent(100),
+                                    ..default()
+                                },
+                                TextLayout::new(Justify::Left, LineBreak::WordOrCharacter),
+                                TextContent,
+                                TextFont::from_font_size(muted_font_size()),
+                                TextColor(THEME_MUTED),
+                            ),
+                        ],
+                    ),
+                ],
+            )],
+        ))
+        .id();
+    commands.entity(parent).add_child(button);
+    button
+}
+
 pub fn spawn_primary_action_button(
     commands: &mut Commands,
     parent: Entity,

@@ -55,6 +55,25 @@ pub struct SaveMetadata {
     pub mod_dependency_count: usize,
 }
 
+impl SaveMetadata {
+    pub fn details_line(&self) -> String {
+        let mod_summary = if self.mod_dependency_count == 1 {
+            "1 mod".to_string()
+        } else {
+            format!("{} mods", self.mod_dependency_count)
+        };
+
+        format!(
+            "Level {} · {} · Day {} · Format v{} · {}",
+            self.character_level,
+            self.world_name,
+            self.world_day,
+            self.save_file_version,
+            mod_summary,
+        )
+    }
+}
+
 const MAX_SAVE_BYTES: u64 = 8 * 1024 * 1024;
 
 pub fn save_game(path: &Path, state: &GameState) -> io::Result<()> {
@@ -510,6 +529,10 @@ mod tests {
         assert_eq!(metadata.world_day, 12);
         assert_eq!(metadata.save_file_version, SAVE_FILE_VERSION);
         assert_eq!(metadata.mod_dependency_count, 1);
+        assert_eq!(
+            metadata.details_line(),
+            "Level 4 · The Cinder March · Day 12 · Format v3 · 1 mod"
+        );
         fs::remove_dir_all(&dir).expect("temporary directory should be removed");
     }
 

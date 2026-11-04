@@ -672,22 +672,10 @@ fn render_saves_tab(commands: &mut Commands, list: Entity, options: &OptionsStat
                 row.label,
                 metadata.character_display_name.clone(),
             );
-            let mod_summary = if metadata.mod_dependency_count == 1 {
-                "1 mod".to_string()
-            } else {
-                format!("{} mods", metadata.mod_dependency_count)
-            };
             bevy_presentation::spawn_muted_label(
                 commands,
                 row.label,
-                format!(
-                    "Level {} · {} · Day {} · Format v{} · {}",
-                    metadata.character_level,
-                    metadata.world_name,
-                    metadata.world_day,
-                    metadata.save_file_version,
-                    mod_summary,
-                ),
+                metadata.details_line(),
             );
         } else {
             let name = save

@@ -44,6 +44,7 @@ pub(crate) enum LifecyclePhase {
 pub(crate) struct LifecycleState {
     pub(crate) phase: LifecyclePhase,
     pub(crate) save_files: Vec<PathBuf>,
+    save_metadata: Vec<Option<crate::persistence::SaveMetadata>>,
     pub(crate) selected: usize,
     pub(crate) world_name: String,
     pub(crate) character_name: String,
@@ -60,6 +61,7 @@ impl Default for LifecycleState {
         Self {
             phase: LifecyclePhase::Start,
             save_files: Vec::new(),
+            save_metadata: Vec::new(),
             selected: 0,
             world_name: "The Ashen Crown".to_string(),
             character_name: String::new(),
@@ -521,6 +523,11 @@ impl LifecycleState {
 
     fn refresh_saves(&mut self) {
         self.save_files = available_save_files();
+        self.save_metadata = self
+            .save_files
+            .iter()
+            .map(|path| crate::persistence::read_save_metadata(path).ok())
+            .collect();
         self.selected = 0;
         self.dirty = true;
     }
@@ -742,11 +749,26 @@ fn render_load(commands: &mut Commands, panel: Entity, lifecycle: &LifecycleStat
         bevy_presentation::spawn_muted_label(commands, panel, message);
     }
     for (index, path) in lifecycle.save_files.iter().enumerate() {
-        let label = path
-            .file_name()
-            .and_then(|name| name.to_str())
-            .unwrap_or("Unknown save");
-        let button = bevy_presentation::spawn_action_button(commands, panel, index, "▣", label);
+        let (label, details) = match lifecycle
+            .save_metadata
+            .get(index)
+            .and_then(Option::as_ref)
+        {
+            Some(metadata) => (
+                metadata.character_display_name.clone(),
+                metadata.details_line(),
+            ),
+            None => (
+                path.file_name()
+                    .and_then(|name| name.to_str())
+                    .unwrap_or("Unknown save")
+                    .to_string(),
+                "Save metadata unavailable.".to_string(),
+            ),
+        };
+        let button = bevy_presentation::spawn_action_button_with_detail(
+            commands, panel, index, "▣", label, details,
+        );
         if lifecycle.selected == index {
             commands
                 .entity(button)
