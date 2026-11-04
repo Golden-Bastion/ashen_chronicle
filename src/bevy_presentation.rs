@@ -911,6 +911,7 @@ fn option_row_node() -> Node {
         padding: UiRect::axes(responsive_surface_padding(), responsive_vmin(0.833)),
         border: UiRect::all(px(1)),
         flex_direction: FlexDirection::Row,
+        flex_wrap: FlexWrap::NoWrap,
         column_gap: responsive_compact_gap(),
         align_items: AlignItems::Center,
         justify_content: JustifyContent::SpaceBetween,
