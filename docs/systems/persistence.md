@@ -32,7 +32,7 @@ The Options screen lists available saves and supports importing or exporting ind
 - Import never overwrites an existing save slot. A collision receives a distinct imported filename.
 - Export validates the selected save and refuses to overwrite an existing destination.
 - Desktop uses native file dialogs. Android uses the system document picker and copies the selected file into a private import staging directory before validation.
-- Valid save entries show the character's full display name, level, world name and day, save-format version, and saved mod-dependency count. This metadata is read without reloading campaign definitions; unreadable files fall back to their filename.
+- Readable save entries show the character's full display name, level, world name and day, save-format version, and saved mod-dependency count. This metadata is read without reloading campaign definitions; unreadable files fall back to their filename.
 - The current save envelope does not record the game release version or a creation timestamp. The displayed version is the save-format version, not the application version.
 
 Collection-level backup and cloud synchronization are outside the current scope.

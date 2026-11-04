@@ -154,7 +154,7 @@ pub fn read_save_metadata(path: &Path) -> io::Result<SaveMetadata> {
     Ok(SaveMetadata {
         character_display_name: game.character.display_name(),
         character_level: game.character.level,
-        world_name: game.world.name,
+        world_name: game.world.name.clone(),
         world_day: game.world.day,
         save_file_version,
         mod_dependency_count: mod_dependencies.len(),
