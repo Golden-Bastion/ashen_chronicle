@@ -621,11 +621,10 @@ fn render_if_active(
     });
 
     let list = bevy_presentation::spawn_scrollable_list(&mut commands, panel);
-    let footer = bevy_presentation::spawn_option_footer(&mut commands, panel);
     match options.tab {
-        0 => render_saves_tab(&mut commands, list, footer, &options),
-        1 => render_mods_tab(&mut commands, list, footer, &options),
-        2 => render_interface_tab(&mut commands, list, footer, &options, &ui_settings),
+        0 => render_saves_tab(&mut commands, list, &options),
+        1 => render_mods_tab(&mut commands, list, &options),
+        2 => render_interface_tab(&mut commands, list, &options, &ui_settings),
         _ => {}
     }
 
@@ -639,10 +638,19 @@ fn render_if_active(
     if let Some(message) = &options.message {
         bevy_presentation::spawn_context_message(&mut commands, panel, message);
     }
+
+    let footer = bevy_presentation::spawn_option_footer(&mut commands, panel);
+    match options.tab {
+        0 => render_saves_footer(&mut commands, footer, &options),
+        1 => render_mods_footer(&mut commands, footer, &options),
+        2 => render_interface_footer(&mut commands, footer, &options),
+        _ => {}
+    }
     options.dirty = false;
+}    options.dirty = false;
 }
 
-fn render_saves_tab(commands: &mut Commands, list: Entity, footer: Entity, options: &OptionsState) {
+fn render_saves_tab(commands: &mut Commands, list: Entity, options: &OptionsState) {
     bevy_presentation::spawn_label(commands, list, "SAVES");
     bevy_presentation::spawn_muted_label(
         commands,
@@ -667,6 +675,9 @@ fn render_saves_tab(commands: &mut Commands, list: Entity, footer: Entity, optio
             options.selected == index,
         );
     }
+}
+
+fn render_saves_footer(commands: &mut Commands, footer: Entity, options: &OptionsState) {
     let import_index = options.saves.len();
     spawn_option_control_button(
         commands,
@@ -684,7 +695,7 @@ fn render_saves_tab(commands: &mut Commands, list: Entity, footer: Entity, optio
     );
 }
 
-fn render_mods_tab(commands: &mut Commands, list: Entity, footer: Entity, options: &OptionsState) {
+fn render_mods_tab(commands: &mut Commands, list: Entity, options: &OptionsState) {
     bevy_presentation::spawn_label(commands, list, "MOD MANAGEMENT");
     bevy_presentation::spawn_muted_label(
         commands,
@@ -740,6 +751,9 @@ fn render_mods_tab(commands: &mut Commands, list: Entity, footer: Entity, option
             options.selected == base + MOD_PRIORITY_DOWN_ACTION,
         );
     }
+}
+
+fn render_mods_footer(commands: &mut Commands, footer: Entity, options: &OptionsState) {
     let install_index = mod_install_action_index(options.mods.len());
     spawn_option_control_button(
         commands,
@@ -772,27 +786,24 @@ fn spawn_option_control_button(
 
 fn spawn_option_button(
     commands: &mut Commands,
-    panel: Entity,
+    parent: Entity,
     index: usize,
     label: impl Into<String>,
     selected: bool,
 ) {
-    let button = bevy_presentation::spawn_action_button(commands, panel, index, "storage", label);
-    if selected {
-        commands.entity(button).insert(UiSelected);
-    }
+    spawn_option_control_button(commands, parent, index, label, selected);
 }
 
 fn render_interface_tab(
     commands: &mut Commands,
-    panel: Entity,
+    list: Entity,
     options: &OptionsState,
     settings: &crate::ui_settings::UiSettings,
 ) {
-    bevy_presentation::spawn_label(commands, panel, "INTERFACE");
+    bevy_presentation::spawn_label(commands, list, "INTERFACE");
     bevy_presentation::spawn_muted_label(
         commands,
-        panel,
+        list,
         "Adjust interface layout and text independently. Changes apply immediately and are saved on this device.",
     );
 
@@ -800,52 +811,33 @@ fn render_interface_tab(
         ("UI scale", settings.ui_scale_percent(), 0, 1),
         ("Font size", settings.font_size_percent(), 2, 3),
     ] {
-        let row = bevy_presentation::spawn_option_row(
-            commands,
-            panel,
-            bevy_presentation::OptionRowLabelSide::Right,
-        );
+        let row = bevy_presentation::spawn_option_row(commands, list);
+        bevy_presentation::spawn_label(commands, row.label, label);
         spawn_option_control_button(
             commands,
             row.controls,
             decrease,
-            "−5%",
+            "−",
             options.selected == decrease,
+        );
+        bevy_presentation::spawn_option_value(
+            commands,
+            row.controls,
+            format!("{value}%"),
         );
         spawn_option_control_button(
             commands,
             row.controls,
             increase,
-            "+5%",
+            "+",
             options.selected == increase,
         );
-        bevy_presentation::spawn_option_row_value(
-            commands,
-            row.label,
-            format!("{label}: {value}%"),
-            bevy_presentation::OptionRowLabelSide::Right,
-        );
     }
+}
 
-    let actions = bevy_presentation::spawn_option_row(
-        commands,
-        panel,
-        bevy_presentation::OptionRowLabelSide::Right,
-    );
-    spawn_option_control_button(
-        commands,
-        actions.controls,
-        4,
-        "Reset",
-        options.selected == 4,
-    );
-    spawn_option_control_button(commands, actions.controls, 5, "Back", options.selected == 5);
-    bevy_presentation::spawn_option_row_value(
-        commands,
-        actions.label,
-        "Other actions",
-        bevy_presentation::OptionRowLabelSide::Right,
-    );
+fn render_interface_footer(commands: &mut Commands, footer: Entity, options: &OptionsState) {
+    spawn_option_control_button(commands, footer, 4, "Reset", options.selected == 4);
+    spawn_option_control_button(commands, footer, 5, "Back", options.selected == 5);
 }
 
 #[cfg(target_os = "android")]
