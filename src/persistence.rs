@@ -537,6 +537,23 @@ mod tests {
     }
 
     #[test]
+    fn save_metadata_details_line_pluralizes_multiple_mod_dependencies() {
+        let metadata = SaveMetadata {
+            character_display_name: "Ash the Warden".to_string(),
+            character_level: 1,
+            world_name: "The Cinder March".to_string(),
+            world_day: 1,
+            save_file_version: SAVE_FILE_VERSION,
+            mod_dependency_count: 2,
+        };
+
+        assert_eq!(
+            metadata.details_line(),
+            "Level 1 · The Cinder March · Day 1 · Format v3 · 2 mods"
+        );
+    }
+
+    #[test]
     fn save_metadata_round_trips_mod_dependencies() {
         let dir = temp_dir();
         let path = character_save_path(&dir, "Dependency Test");
