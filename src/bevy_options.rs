@@ -672,11 +672,7 @@ fn render_saves_tab(commands: &mut Commands, list: Entity, options: &OptionsStat
                 row.label,
                 metadata.character_display_name.clone(),
             );
-            bevy_presentation::spawn_muted_label(
-                commands,
-                row.label,
-                metadata.details_line(),
-            );
+            bevy_presentation::spawn_muted_label(commands, row.label, metadata.details_line());
         } else {
             let name = save
                 .path

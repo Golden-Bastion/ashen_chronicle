@@ -749,11 +749,7 @@ fn render_load(commands: &mut Commands, panel: Entity, lifecycle: &LifecycleStat
         bevy_presentation::spawn_muted_label(commands, panel, message);
     }
     for (index, path) in lifecycle.save_files.iter().enumerate() {
-        let (label, details) = match lifecycle
-            .save_metadata
-            .get(index)
-            .and_then(Option::as_ref)
-        {
+        let (label, details) = match lifecycle.save_metadata.get(index).and_then(Option::as_ref) {
             Some(metadata) => (
                 metadata.character_display_name.clone(),
                 metadata.details_line(),
