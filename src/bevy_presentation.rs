@@ -2071,18 +2071,14 @@ mod tests {
     }
 
     #[test]
-    fn option_rows_create_slots_in_the_requested_visual_order() {
+    fn option_rows_create_label_then_right_aligned_controls() {
         #[derive(Resource)]
-        struct Fixture {
-            left: OptionRowSlots,
-            right: OptionRowSlots,
-        }
+        struct Fixture(OptionRowSlots);
 
         fn setup(mut commands: Commands) {
             let parent = commands.spawn_empty().id();
-            let left = spawn_option_row(&mut commands, parent, OptionRowLabelSide::Left);
-            let right = spawn_option_row(&mut commands, parent, OptionRowLabelSide::Right);
-            commands.insert_resource(Fixture { left, right });
+            let row = spawn_option_row(&mut commands, parent);
+            commands.insert_resource(Fixture(row));
         }
 
         let mut world = World::new();
@@ -2090,27 +2086,16 @@ mod tests {
         schedule.add_systems(setup);
         schedule.run(&mut world);
 
-        let fixture = world.resource::<Fixture>();
-        let left_order = world
-            .get::<Children>(fixture.left.row)
+        let slots = world.resource::<Fixture>().0;
+        let children = world
+            .get::<Children>(slots.row)
             .unwrap()
             .iter()
             .collect::<Vec<_>>();
-        let right_order = world
-            .get::<Children>(fixture.right.row)
-            .unwrap()
-            .iter()
-            .collect::<Vec<_>>();
-        assert_eq!(left_order, vec![fixture.left.label, fixture.left.controls]);
-        assert_eq!(
-            right_order,
-            vec![fixture.right.controls, fixture.right.label]
-        );
+        assert_eq!(children, vec![slots.label, slots.controls]);
+        assert!(world.get::<OptionRowLabelSlot>(slots.label).is_some());
         assert!(world
-            .get::<OptionRowLabelSlot>(fixture.left.label)
-            .is_some());
-        assert!(world
-            .get::<OptionRowControlsSlot>(fixture.right.controls)
+            .get::<OptionRowControlsSlot>(slots.controls)
             .is_some());
     }
 
