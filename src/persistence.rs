@@ -45,6 +45,35 @@ pub struct LoadedSave {
     pub mod_dependencies: Vec<SavedModDependency>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SaveMetadata {
+    pub character_display_name: String,
+    pub character_level: u32,
+    pub world_name: String,
+    pub world_day: u32,
+    pub save_file_version: u32,
+    pub mod_dependency_count: usize,
+}
+
+impl SaveMetadata {
+    pub fn details_line(&self) -> String {
+        let mod_summary = if self.mod_dependency_count == 1 {
+            "1 mod".to_string()
+        } else {
+            format!("{} mods", self.mod_dependency_count)
+        };
+
+        format!(
+            "Level {} · {} · Day {} · Format v{} · {}",
+            self.character_level,
+            self.world_name,
+            self.world_day,
+            self.save_file_version,
+            mod_summary,
+        )
+    }
+}
+
 const MAX_SAVE_BYTES: u64 = 8 * 1024 * 1024;
 
 pub fn save_game(path: &Path, state: &GameState) -> io::Result<()> {
@@ -132,7 +161,52 @@ fn load_game(path: &Path) -> io::Result<GameState> {
     load_game_with_metadata(path).map(|loaded| loaded.game)
 }
 
+pub fn read_save_metadata(path: &Path) -> io::Result<SaveMetadata> {
+    let LoadedSaveFile {
+        save_file_version,
+        game,
+        mod_dependencies,
+        ..
+    } = read_save_file(path)?;
+    let game = normalize_loaded_game(game, save_file_version);
+
+    Ok(SaveMetadata {
+        character_display_name: game.character.display_name(),
+        character_level: game.character.level,
+        world_name: game.world.name.clone(),
+        world_day: game.world.day,
+        save_file_version,
+        mod_dependency_count: mod_dependencies.len(),
+    })
+}
+
 pub fn load_game_with_metadata(path: &Path) -> io::Result<LoadedSave> {
+    let LoadedSaveFile {
+        save_file_version,
+        game,
+        runtime_generated_events,
+        mod_dependencies,
+    } = read_save_file(path)?;
+    let mut game = normalize_loaded_game(game, save_file_version);
+
+    let mut content = crate::content::load_campaign_content();
+    for event in runtime_generated_events {
+        if content
+            .events
+            .iter()
+            .all(|candidate| candidate.id != event.id)
+        {
+            content.events.push(event);
+        }
+    }
+    game.campaign_content = Some(content);
+    Ok(LoadedSave {
+        game,
+        mod_dependencies,
+    })
+}
+
+fn read_save_file(path: &Path) -> io::Result<LoadedSaveFile> {
     let file = File::open(path)?;
     if file.metadata()?.len() > MAX_SAVE_BYTES {
         return Err(io::Error::new(
@@ -178,8 +252,11 @@ pub fn load_game_with_metadata(path: &Path) -> io::Result<LoadedSave> {
             ),
         ));
     }
-    let mut game = parsed.game;
-    if parsed.save_file_version < 2 {
+    Ok(parsed)
+}
+
+fn normalize_loaded_game(mut game: GameState, save_file_version: u32) -> GameState {
+    if save_file_version < 2 {
         game.world.time_points = 3;
         game.world.day = 1;
         if game.character.level == 0 {
@@ -194,21 +271,7 @@ pub fn load_game_with_metadata(path: &Path) -> io::Result<LoadedSave> {
             game.character.attributes.endurance = 1;
         }
     }
-    let mut content = crate::content::load_campaign_content();
-    for event in parsed.runtime_generated_events {
-        if content
-            .events
-            .iter()
-            .all(|candidate| candidate.id != event.id)
-        {
-            content.events.push(event);
-        }
-    }
-    game.campaign_content = Some(content);
-    Ok(LoadedSave {
-        game,
-        mod_dependencies: parsed.mod_dependencies,
-    })
+    game
 }
 
 fn is_runtime_generated_event(event_id: &str) -> bool {
@@ -436,6 +499,58 @@ mod tests {
             b"keep this file"
         );
         fs::remove_dir_all(&dir).expect("temporary directory should be removed");
+    }
+
+    #[test]
+    fn save_list_metadata_exposes_character_world_and_format_details() {
+        let dir = temp_dir();
+        let path = character_save_path(&dir, "Metadata Test");
+        let mut state = create_new_state(
+            "The Cinder March",
+            WorldMode::New,
+            "Ash".to_string(),
+            "Warden".to_string(),
+        );
+        state.character.level = 4;
+        state.world.day = 12;
+        let dependencies = vec![SavedModDependency {
+            id: "campaign.example".into(),
+            name: "Example Campaign".into(),
+            version: "1.2.3".into(),
+        }];
+
+        save_game_with_dependencies(&path, &state, &dependencies)
+            .expect("save with metadata should succeed");
+        let metadata = read_save_metadata(&path).expect("save metadata should be readable");
+
+        assert_eq!(metadata.character_display_name, "Ash the Warden");
+        assert_eq!(metadata.character_level, 4);
+        assert_eq!(metadata.world_name, "The Cinder March");
+        assert_eq!(metadata.world_day, 12);
+        assert_eq!(metadata.save_file_version, SAVE_FILE_VERSION);
+        assert_eq!(metadata.mod_dependency_count, 1);
+        assert_eq!(
+            metadata.details_line(),
+            "Level 4 · The Cinder March · Day 12 · Format v3 · 1 mod"
+        );
+        fs::remove_dir_all(&dir).expect("temporary directory should be removed");
+    }
+
+    #[test]
+    fn save_metadata_details_line_pluralizes_multiple_mod_dependencies() {
+        let metadata = SaveMetadata {
+            character_display_name: "Ash the Warden".to_string(),
+            character_level: 1,
+            world_name: "The Cinder March".to_string(),
+            world_day: 1,
+            save_file_version: SAVE_FILE_VERSION,
+            mod_dependency_count: 2,
+        };
+
+        assert_eq!(
+            metadata.details_line(),
+            "Level 1 · The Cinder March · Day 1 · Format v3 · 2 mods"
+        );
     }
 
     #[test]
