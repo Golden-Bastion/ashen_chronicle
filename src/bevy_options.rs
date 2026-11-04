@@ -766,14 +766,14 @@ fn render_mods_tab(commands: &mut Commands, list: Entity, options: &OptionsState
             commands,
             row.controls,
             base + MOD_PRIORITY_UP_ACTION,
-            "Priority↑",
+            "Priority+",
             options.selected == base + MOD_PRIORITY_UP_ACTION,
         );
         spawn_option_control_button(
             commands,
             row.controls,
             base + MOD_PRIORITY_DOWN_ACTION,
-            "Priority↓",
+            "Priority—",
             options.selected == base + MOD_PRIORITY_DOWN_ACTION,
         );
     }
