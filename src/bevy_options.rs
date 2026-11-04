@@ -21,7 +21,15 @@ const MOD_PRIORITY_UP_ACTION: usize = 2;
 const MOD_PRIORITY_DOWN_ACTION: usize = 3;
 
 fn mod_action_start_index(mod_index: usize) -> usize {
-    1 + mod_index * MOD_ACTIONS_PER_MOD
+    mod_index * MOD_ACTIONS_PER_MOD
+}
+
+fn mod_install_action_index(mod_count: usize) -> usize {
+    mod_count * MOD_ACTIONS_PER_MOD
+}
+
+fn mod_back_action_index(mod_count: usize) -> usize {
+    mod_install_action_index(mod_count) + 1
 }
 
 #[derive(Resource)]
@@ -274,7 +282,7 @@ fn options_input(
 fn options_selection_end(options: &OptionsState) -> usize {
     match options.tab {
         0 => options.saves.len() + 1,
-        1 => mod_action_start_index(options.mods.len()),
+        1 => mod_back_action_index(options.mods.len()),
         2 => 5,
         _ => 0,
     }
@@ -286,11 +294,11 @@ fn activate_saves_action(
     navigation: &mut NavigationState,
     gameplay: &GameplayState,
 ) {
-    if options.selected == 0 {
-        import_save(options, lifecycle);
-    } else if options.selected <= options.saves.len() {
-        let path = options.saves[options.selected - 1].clone();
+    if options.selected < options.saves.len() {
+        let path = options.saves[options.selected].clone();
         export_save(options, &path);
+    } else if options.selected == options.saves.len() {
+        import_save(options, lifecycle);
     } else {
         close_options(lifecycle, navigation, options, gameplay);
     }
@@ -302,17 +310,17 @@ fn activate_mods_action(
     navigation: &mut NavigationState,
     gameplay: &GameplayState,
 ) {
-    if options.selected == 0 {
+    if options.selected == mod_install_action_index(options.mods.len()) {
         import_mod(options);
         return;
     }
-    if options.selected == options_selection_end(options) {
+    if options.selected == mod_back_action_index(options.mods.len()) {
         close_options(lifecycle, navigation, options, gameplay);
         return;
     }
-    let action_index = options.selected - 1;
-    let mod_index = action_index / MOD_ACTIONS_PER_MOD;
-    let action = action_index % MOD_ACTIONS_PER_MOD;
+
+    let mod_index = options.selected / MOD_ACTIONS_PER_MOD;
+    let action = options.selected % MOD_ACTIONS_PER_MOD;
     let Some(item) = options.mods.get(mod_index).cloned() else {
         return;
     };
@@ -552,7 +560,7 @@ fn render_if_active(
     }
 
     let root = bevy_presentation::spawn_screen(&mut commands, "OPTIONS");
-    let panel = bevy_presentation::spawn_panel(&mut commands, root);
+    let panel = bevy_presentation::spawn_fixed_panel(&mut commands, root);
     commands.entity(panel).insert((
         bevy_presentation::UiSurface,
         BorderColor::all(bevy_presentation::THEME_BORDER),
@@ -572,6 +580,7 @@ fn render_if_active(
             flex_wrap: FlexWrap::Wrap,
             column_gap: bevy_presentation::responsive_compact_gap(),
             row_gap: px(4),
+            flex_shrink: 0.0,
             ..default()
         })
         .id();
@@ -586,12 +595,14 @@ fn render_if_active(
                 bevy_presentation::UiTabButton { index },
                 bevy_presentation::UiStyledButton,
                 Node {
+                    width: Val::Auto,
                     min_width: px(100),
                     min_height: bevy_presentation::touch_target_size(),
                     padding: UiRect::axes(bevy_presentation::responsive_surface_padding(), px(6)),
                     border: UiRect::all(px(1)),
                     justify_content: JustifyContent::Center,
                     align_items: AlignItems::Center,
+                    flex_shrink: 0.0,
                     ..default()
                 },
                 BorderColor::all(bevy_presentation::THEME_BORDER),
@@ -609,10 +620,12 @@ fn render_if_active(
         }
     });
 
+    let list = bevy_presentation::spawn_scrollable_list(&mut commands, panel);
+    let footer = bevy_presentation::spawn_option_footer(&mut commands, panel);
     match options.tab {
-        0 => render_saves_tab(&mut commands, panel, &options),
-        1 => render_mods_tab(&mut commands, panel, &options),
-        2 => render_interface_tab(&mut commands, panel, &options, &ui_settings),
+        0 => render_saves_tab(&mut commands, list, footer, &options),
+        1 => render_mods_tab(&mut commands, list, footer, &options),
+        2 => render_interface_tab(&mut commands, list, footer, &options, &ui_settings),
         _ => {}
     }
 
@@ -629,53 +642,70 @@ fn render_if_active(
     options.dirty = false;
 }
 
-fn render_saves_tab(commands: &mut Commands, panel: Entity, options: &OptionsState) {
-    bevy_presentation::spawn_label(commands, panel, "SAVES");
+fn render_saves_tab(
+    commands: &mut Commands,
+    list: Entity,
+    footer: Entity,
+    options: &OptionsState,
+) {
+    bevy_presentation::spawn_label(commands, list, "SAVES");
     bevy_presentation::spawn_muted_label(
         commands,
-        panel,
-        "Import a save from a file or export an existing save. Imports never overwrite an existing slot.",
+        list,
+        "Export an existing save or import one from a file. Imports never overwrite an existing slot.",
     );
-    spawn_option_button(commands, panel, 0, "Import save", options.selected == 0);
+    if options.saves.is_empty() {
+        bevy_presentation::spawn_muted_label(commands, list, "No saves found.");
+    }
     for (index, save) in options.saves.iter().enumerate() {
         let name = save
             .file_name()
             .map(|value| value.to_string_lossy().to_string())
             .unwrap_or_else(|| save.display().to_string());
-        spawn_option_button(
+        let row = bevy_presentation::spawn_option_row(commands, list);
+        bevy_presentation::spawn_label(commands, row.label, name);
+        spawn_option_control_button(
             commands,
-            panel,
-            index + 1,
-            format!("Export: {name}"),
-            options.selected == index + 1,
+            row.controls,
+            index,
+            "Export",
+            options.selected == index,
         );
     }
-    spawn_option_button(
+    let import_index = options.saves.len();
+    spawn_option_control_button(
         commands,
-        panel,
-        options.saves.len() + 1,
+        footer,
+        import_index,
+        "Import save",
+        options.selected == import_index,
+    );
+    spawn_option_control_button(
+        commands,
+        footer,
+        import_index + 1,
         "Back",
-        options.selected == options.saves.len() + 1,
+        options.selected == import_index + 1,
     );
 }
 
-fn render_mods_tab(commands: &mut Commands, panel: Entity, options: &OptionsState) {
-    bevy_presentation::spawn_label(commands, panel, "MOD MANAGEMENT");
+fn render_mods_tab(
+    commands: &mut Commands,
+    list: Entity,
+    footer: Entity,
+    options: &OptionsState,
+) {
+    bevy_presentation::spawn_label(commands, list, "MOD MANAGEMENT");
     bevy_presentation::spawn_muted_label(
         commands,
-        panel,
-        "Install ZIP packages, enable or disable mods, adjust load priority, or remove installed mods. Changes require restart.",
+        list,
+        "Enable or disable mods, adjust load priority, or remove installed mods. Changes require restart.",
     );
-    spawn_option_button(commands, panel, 0, "Install mod ZIP", options.selected == 0);
     if options.mods.is_empty() {
-        bevy_presentation::spawn_muted_label(commands, panel, "No mods installed.");
+        bevy_presentation::spawn_muted_label(commands, list, "No mods installed.");
     }
     for (mod_index, item) in options.mods.iter().enumerate() {
-        let row = bevy_presentation::spawn_option_row(
-            commands,
-            panel,
-            bevy_presentation::OptionRowLabelSide::Left,
-        );
+        let row = bevy_presentation::spawn_option_row(commands, list);
         bevy_presentation::spawn_label(commands, row.label, &item.manifest.name);
         bevy_presentation::spawn_muted_label(
             commands,
@@ -709,24 +739,31 @@ fn render_mods_tab(commands: &mut Commands, panel: Entity, options: &OptionsStat
             commands,
             row.controls,
             base + MOD_PRIORITY_UP_ACTION,
-            "Priority ↑",
+            "Up",
             options.selected == base + MOD_PRIORITY_UP_ACTION,
         );
         spawn_option_control_button(
             commands,
             row.controls,
             base + MOD_PRIORITY_DOWN_ACTION,
-            "Priority ↓",
+            "Down",
             options.selected == base + MOD_PRIORITY_DOWN_ACTION,
         );
     }
-    let back_index = mod_action_start_index(options.mods.len());
-    spawn_option_button(
+    let install_index = mod_install_action_index(options.mods.len());
+    spawn_option_control_button(
         commands,
-        panel,
-        back_index,
+        footer,
+        install_index,
+        "Install mod ZIP",
+        options.selected == install_index,
+    );
+    spawn_option_control_button(
+        commands,
+        footer,
+        install_index + 1,
         "Back",
-        options.selected == back_index,
+        options.selected == install_index + 1,
     );
 }
 
