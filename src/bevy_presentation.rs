@@ -518,6 +518,82 @@ pub fn spawn_panel(commands: &mut Commands, parent: Entity) -> Entity {
     panel
 }
 
+
+fn fixed_panel_node() -> Node {
+    Node {
+        width: percent(100),
+        min_width: px(0),
+        min_height: px(0),
+        flex_grow: 1.0,
+        flex_shrink: 1.0,
+        padding: UiRect::all(panel_padding()),
+        flex_direction: FlexDirection::Column,
+        row_gap: panel_gap(),
+        overflow: Overflow::clip(),
+        ..default()
+    }
+}
+
+/// Creates a fixed screen panel; only its dedicated list child should scroll.
+pub fn spawn_fixed_panel(commands: &mut Commands, parent: Entity) -> Entity {
+    let panel = commands
+        .spawn((
+            TabGroup::modal(),
+            fixed_panel_node(),
+            BackgroundColor(THEME_PANEL),
+        ))
+        .id();
+    commands.entity(parent).add_child(panel);
+    panel
+}
+
+fn scrollable_list_node() -> Node {
+    Node {
+        width: percent(100),
+        min_width: px(0),
+        min_height: px(0),
+        flex_grow: 1.0,
+        flex_shrink: 1.0,
+        flex_direction: FlexDirection::Column,
+        row_gap: panel_gap(),
+        overflow: Overflow::scroll(),
+        ..default()
+    }
+}
+
+/// Creates the only scrolling region inside a fixed Options-style panel.
+pub fn spawn_scrollable_list(commands: &mut Commands, parent: Entity) -> Entity {
+    let list = commands
+        .spawn((TouchScrollablePanel, scrollable_list_node()))
+        .id();
+    commands.entity(parent).add_child(list);
+    list
+}
+
+fn option_footer_node() -> Node {
+    Node {
+        width: percent(100),
+        min_width: px(0),
+        min_height: touch_target_size(),
+        flex_direction: FlexDirection::Row,
+        flex_wrap: FlexWrap::Wrap,
+        column_gap: responsive_compact_gap(),
+        row_gap: responsive_compact_gap(),
+        justify_content: JustifyContent::End,
+        align_items: AlignItems::Center,
+        flex_shrink: 0.0,
+        padding: UiRect::top(responsive_compact_gap()),
+        ..default()
+    }
+}
+
+/// Creates a non-scrolling footer below the option list.
+pub fn spawn_option_footer(commands: &mut Commands, parent: Entity) -> Entity {
+    let footer = commands.spawn(option_footer_node()).id();
+    commands.entity(parent).add_child(footer);
+    footer
+}
+
 fn standalone_label_node() -> Node {
     Node {
         width: percent(100),
@@ -814,13 +890,6 @@ fn action_button_node() -> Node {
     }
 }
 
-/// Which side of a reusable option row contains its label/value.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum OptionRowLabelSide {
-    Left,
-    Right,
-}
-
 /// The two content slots created by a shared Options/settings row.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct OptionRowSlots {
@@ -843,43 +912,33 @@ fn option_row_node() -> Node {
         padding: UiRect::axes(responsive_surface_padding(), responsive_vmin(0.833)),
         border: UiRect::all(px(1)),
         flex_direction: FlexDirection::Row,
-        flex_wrap: FlexWrap::Wrap,
         column_gap: responsive_compact_gap(),
-        row_gap: responsive_compact_gap(),
-        justify_content: JustifyContent::SpaceBetween,
         align_items: AlignItems::Center,
+        justify_content: JustifyContent::SpaceBetween,
         ..default()
     }
 }
 
-fn option_row_label_node(side: OptionRowLabelSide) -> Node {
+fn option_row_label_node() -> Node {
     Node {
         min_width: px(0),
         flex_grow: 1.0,
         flex_shrink: 1.0,
         flex_direction: FlexDirection::Column,
         row_gap: px(2),
-        align_items: match side {
-            OptionRowLabelSide::Left => AlignItems::Start,
-            OptionRowLabelSide::Right => AlignItems::End,
-        },
+        align_items: AlignItems::Start,
         ..default()
     }
 }
 
-fn option_row_controls_node(label_side: OptionRowLabelSide) -> Node {
+fn option_row_controls_node() -> Node {
     Node {
         min_width: px(0),
         flex_shrink: 0.0,
         flex_direction: FlexDirection::Row,
-        flex_wrap: FlexWrap::Wrap,
         column_gap: responsive_compact_gap(),
-        row_gap: responsive_compact_gap(),
-        justify_content: match label_side {
-            OptionRowLabelSide::Left => JustifyContent::End,
-            OptionRowLabelSide::Right => JustifyContent::Start,
-        },
         align_items: AlignItems::Center,
+        justify_content: JustifyContent::End,
         ..default()
     }
 }
@@ -887,8 +946,8 @@ fn option_row_controls_node(label_side: OptionRowLabelSide) -> Node {
 fn compact_action_button_node() -> Node {
     Node {
         width: Val::Auto,
-        min_width: touch_target_size(),
-        max_width: px(140),
+        min_width: px(76),
+        max_width: px(180),
         min_height: touch_target_size(),
         flex_grow: 0.0,
         flex_shrink: 0.0,
@@ -903,14 +962,20 @@ fn compact_action_button_node() -> Node {
     }
 }
 
-/// Creates a bordered, responsive row with a flexible label column and a
-/// compact control group. The Right side mirrors the slots for settings whose
-/// controls lead and whose current value is right-aligned.
-pub fn spawn_option_row(
-    commands: &mut Commands,
-    parent: Entity,
-    label_side: OptionRowLabelSide,
-) -> OptionRowSlots {
+fn option_value_node() -> Node {
+    Node {
+        min_width: px(58),
+        min_height: touch_target_size(),
+        flex_shrink: 0.0,
+        justify_content: JustifyContent::Center,
+        align_items: AlignItems::Center,
+        ..default()
+    }
+}
+
+/// Creates the shared landscape option row: the option name stays on the left
+/// and its controls stay together on the right.
+pub fn spawn_option_row(commands: &mut Commands, parent: Entity) -> OptionRowSlots {
     let row = commands
         .spawn((
             UiSurface,
@@ -920,22 +985,14 @@ pub fn spawn_option_row(
         ))
         .id();
     let label = commands
-        .spawn((OptionRowLabelSlot, option_row_label_node(label_side)))
+        .spawn((OptionRowLabelSlot, option_row_label_node()))
         .id();
     let controls = commands
-        .spawn((OptionRowControlsSlot, option_row_controls_node(label_side)))
+        .spawn((OptionRowControlsSlot, option_row_controls_node()))
         .id();
 
-    match label_side {
-        OptionRowLabelSide::Left => {
-            commands.entity(row).add_child(label);
-            commands.entity(row).add_child(controls);
-        }
-        OptionRowLabelSide::Right => {
-            commands.entity(row).add_child(controls);
-            commands.entity(row).add_child(label);
-        }
-    }
+    commands.entity(row).add_child(label);
+    commands.entity(row).add_child(controls);
     commands.entity(parent).add_child(row);
 
     OptionRowSlots {
@@ -945,28 +1002,19 @@ pub fn spawn_option_row(
     }
 }
 
-/// Adds a value/heading to an option row, aligned to the side of its slot.
-pub fn spawn_option_row_value(
+/// Adds a current setting value to the right-hand control group.
+pub fn spawn_option_value(
     commands: &mut Commands,
     parent: Entity,
     text: impl Into<String>,
-    alignment: OptionRowLabelSide,
 ) -> Entity {
-    let justification = match alignment {
-        OptionRowLabelSide::Left => Justify::Left,
-        OptionRowLabelSide::Right => Justify::Right,
-    };
     let value = commands
         .spawn((
             Text::new(text.into()),
-            Node {
-                width: percent(100),
-                min_width: px(0),
-                ..default()
-            },
-            TextLayout::new(justification, LineBreak::WordOrCharacter),
+            option_value_node(),
+            TextLayout::new(Justify::Center, LineBreak::WordOrCharacter),
             TextContent,
-            TextFont::from_font_size(label_font_size()),
+            TextFont::from_font_size(muted_font_size()),
             TextColor(THEME_TEXT),
         ))
         .id();
@@ -974,7 +1022,7 @@ pub fn spawn_option_row_value(
     value
 }
 
-/// Spawns a labelled action sized for horizontal option/settings control groups.
+/// Spawns a standard horizontal button for option rows and persistent footers.
 pub fn spawn_compact_action_button(
     commands: &mut Commands,
     parent: Entity,
@@ -998,7 +1046,7 @@ pub fn spawn_compact_action_button(
             children![(
                 Text::new(label.into()),
                 Node {
-                    min_width: px(0),
+                    min_width: px(52),
                     max_width: percent(100),
                     ..default()
                 },
@@ -1996,18 +2044,31 @@ mod tests {
     }
 
     #[test]
-    fn option_rows_mirror_label_and_control_columns() {
-        let left_label = option_row_label_node(OptionRowLabelSide::Left);
-        let left_controls = option_row_controls_node(OptionRowLabelSide::Left);
-        assert_eq!(left_label.flex_grow, 1.0);
-        assert_eq!(left_label.align_items, AlignItems::Start);
-        assert_eq!(left_controls.justify_content, JustifyContent::End);
+    fn option_rows_keep_labels_left_and_controls_right() {
+        let label = option_row_label_node();
+        let controls = option_row_controls_node();
+        let row = option_row_node();
+        assert_eq!(label.flex_grow, 1.0);
+        assert_eq!(label.align_items, AlignItems::Start);
+        assert_eq!(controls.justify_content, JustifyContent::End);
+        assert_eq!(row.flex_direction, FlexDirection::Row);
+        assert_eq!(row.flex_wrap, FlexWrap::NoWrap);
+    }
 
-        let right_label = option_row_label_node(OptionRowLabelSide::Right);
-        let right_controls = option_row_controls_node(OptionRowLabelSide::Right);
-        assert_eq!(right_label.flex_grow, 1.0);
-        assert_eq!(right_label.align_items, AlignItems::End);
-        assert_eq!(right_controls.justify_content, JustifyContent::Start);
+    #[test]
+    fn options_scroll_region_is_separate_from_fixed_panel_and_footer() {
+        let panel = fixed_panel_node();
+        let list = scrollable_list_node();
+        let footer = option_footer_node();
+        assert_eq!(panel.flex_grow, 1.0);
+        assert_eq!(panel.min_height, px(0));
+        assert_eq!(panel.overflow, Overflow::clip());
+        assert_eq!(list.flex_grow, 1.0);
+        assert_eq!(list.min_height, px(0));
+        assert_eq!(list.overflow, Overflow::scroll());
+        assert_eq!(footer.flex_shrink, 0.0);
+        assert_eq!(footer.flex_direction, FlexDirection::Row);
+        assert_eq!(footer.justify_content, JustifyContent::End);
     }
 
     #[test]
@@ -2067,7 +2128,7 @@ mod tests {
 
         let node = compact_action_button_node();
         assert_eq!(node.width, Val::Auto);
-        assert_eq!(node.min_width, touch_target_size());
+        assert_eq!(node.min_width, px(76));
         assert_eq!(node.min_height, touch_target_size());
         assert_eq!(node.flex_grow, 0.0);
         assert_eq!(node.flex_shrink, 0.0);
