@@ -630,8 +630,8 @@ jobs:
           install_dir="$RUNNER_TEMP/butler"
           mkdir -p "$install_dir"
 
-          curl --fail --location --retry 3 \\
-            https://broth.itch.zone/butler/linux-amd64/LATEST/archive/default \\
+          curl --fail --location --retry 3 \
+            https://broth.itch.zone/butler/linux-amd64/LATEST/archive/default \
             --output "$archive"
           unzip -q "$archive" -d "$install_dir"
           chmod +x "$install_dir/butler"
@@ -678,15 +678,15 @@ jobs:
           done
 
           if [[ "${#missing[@]}" -ne 0 ]]; then
-            printf 'Timed out waiting for release assets:\\n'
-            printf '  %s\\n' "${missing[@]}"
+            printf 'Timed out waiting for release assets:\n'
+            printf '  %s\n' "${missing[@]}"
             exit 1
           fi
 
           mkdir -p dist
-          gh release download "$TAG_NAME" \\
-            --repo "$GITHUB_REPOSITORY" \\
-            --dir dist \\
+          gh release download "$TAG_NAME" \
+            --repo "$GITHUB_REPOSITORY" \
+            --dir dist \
             --pattern 'the-ever-unfolding-saga-*'
 
           for asset in "${expected_assets[@]}"; do
