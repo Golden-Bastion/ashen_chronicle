@@ -1,6 +1,6 @@
 version = 1
 SPDX-PackageName = "The Ever-Unfolding Saga"
-SPDX-PackageDownloadLocation = "https://github.com/Golden-Bastion/ashen_chronicle"
+SPDX-PackageDownloadLocation = "https://github.com/Golden-Bastion/the-ever-unfolding-saga"
 
 # --- Source Code and developer documentation: BUSL 1.1 ---------------------
 [[annotations]]
