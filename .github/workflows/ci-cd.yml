@@ -47,7 +47,7 @@ on:
         default: false
         type: boolean
       version_suffix:
-        description: Display-only suffix appended after the package version (a leading hyphen is optional)
+        description: Display-only suffix appended after the package version
         required: false
         default: ''
         type: string

@@ -32,7 +32,7 @@ on:
         required: false
         type: string
       version_suffix:
-        description: Display-only suffix appended after the package version (a leading hyphen is optional)
+        description: Display-only suffix appended after the package version
         required: false
         default: ''
         type: string
