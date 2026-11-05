@@ -11,7 +11,7 @@ Configure these repository-level Actions settings:
 - **Variable `ITCHIO_TARGET`** — the itch.io target in `username/game-slug` form. For a page such as `https://username.itch.io/game-slug`, use `username/game-slug`.
 - **Secret `BUTLER_API_KEY`** — an itch.io API key whose source is `wharf`. Butler reads this environment variable directly. Keep it in GitHub Secrets; never commit it or print it in workflow logs.
 
-If either setting is absent, the Android release workflow skips the itch.io mirror and continues to publish the GitHub Release normally. Once both are configured, tag-based releases are mirrored automatically.
+If either setting is absent, the Android release workflow skips the itch.io mirror and continues uploading the APKs to the GitHub Release normally. Once both are configured, tag-based releases are mirrored automatically.
 
 ## itch.io channels
 
