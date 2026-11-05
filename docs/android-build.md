@@ -36,6 +36,8 @@ Encode that keystore for the `ANDROID_KEYSTORE_BASE64` secret without adding the
 
 ## Android storage
 
+The application ID is `com.rightward.everunfoldingsaga`. This is a new Android application identity, so Android installs it as a separate app rather than upgrading the previous package. Private files are not transferred between the two applications. Export saves from the previous installation and import them into the new app before uninstalling the older one; uninstalling it first removes its private app data.
+
 Android stores all active game data in the application's private files directory. Rust resolves that single internal root through the Activity's `getNativeGameRootPath()` method. The game does not request a shared-folder tree permission and does not synchronize data to public storage.
 
 Bundled base assets and packaged default mods are copied into a protected bundled area within the internal root. Default mods are seeded into the managed mods catalog once, using their manifest IDs as installation directory names. User-installed mods, saves, import staging files, and mod preferences remain private to the app.
