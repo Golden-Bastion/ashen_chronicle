@@ -240,7 +240,10 @@ mod tests {
 
     #[test]
     fn bundled_mod_seeding_does_not_overwrite_user_files() {
-        let root = std::env::temp_dir().join(format!("ever_unfolding_saga_seed_test_{}", std::process::id()));
+        let root = std::env::temp_dir().join(format!(
+            "ever_unfolding_saga_seed_test_{}",
+            std::process::id()
+        ));
         let source = root.join("source");
         let target = root.join("target");
         fs::create_dir_all(source.join("example")).unwrap();
