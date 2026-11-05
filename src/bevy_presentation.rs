@@ -503,7 +503,7 @@ fn screen_header_row_node() -> Node {
         width: percent(100),
         min_width: px(0),
         flex_direction: FlexDirection::Row,
-        flex_wrap: FlexWrap::Wrap,
+        flex_wrap: FlexWrap::NoWrap,
         column_gap: responsive_compact_gap(),
         row_gap: px(2),
         align_items: AlignItems::Center,
@@ -553,10 +553,11 @@ pub fn spawn_screen_with_right_detail(
                         Node {
                             min_width: px(0),
                             max_width: percent(40),
-                            flex_shrink: 1.0,
+                            flex_shrink: 0.0,
                             ..default()
                         },
-                        TextLayout::new(Justify::Right, LineBreak::WordOrCharacter),
+                        // Keep the version on one line even when the title row gets tight.
+                        TextLayout::no_wrap(),
                         TextContent,
                         TextFont::from_font_size(screen_detail_font_size()),
                         TextColor(THEME_MUTED),
@@ -2176,9 +2177,10 @@ mod tests {
     }
 
     #[test]
-    fn screen_header_row_keeps_the_detail_right_aligned() {
+    fn screen_header_row_keeps_the_detail_right_aligned_without_wrapping() {
         let row = screen_header_row_node();
         assert_eq!(row.flex_direction, FlexDirection::Row);
+        assert_eq!(row.flex_wrap, FlexWrap::NoWrap);
         assert_eq!(row.justify_content, JustifyContent::SpaceBetween);
         assert_eq!(row.align_items, AlignItems::Center);
     }
