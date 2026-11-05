@@ -1,0 +1,318 @@
+use super::*;
+
+#[test]
+fn same_seed_and_location_generate_identical_maps() {
+    let a = generate_local_map(42, "location.old_shrine", LocalMapConfig::default());
+    let b = generate_local_map(42, "location.old_shrine", LocalMapConfig::default());
+    assert_eq!(a, b);
+}
+
+#[test]
+fn different_location_ids_generate_distinct_maps() {
+    let a = generate_local_map(42, "location.old_shrine", LocalMapConfig::default());
+    let b = generate_local_map(42, "location.ashen_gate", LocalMapConfig::default());
+    assert_ne!(a.seed, b.seed);
+    assert_ne!(a, b);
+}
+
+#[test]
+fn generated_props_are_deterministic_and_block_their_footprints() {
+    let a = generate_local_map(42, "location.old_shrine", LocalMapConfig::default());
+    let b = generate_local_map(42, "location.old_shrine", LocalMapConfig::default());
+    assert_eq!(a.props, b.props);
+    assert!(!a.props.is_empty());
+    assert!(a
+        .props
+        .iter()
+        .any(|prop| prop.kind == SpatialPropKind::Pillar));
+    assert!(a
+        .props
+        .iter()
+        .any(|prop| prop.kind == SpatialPropKind::Table));
+
+    for prop in &a.props {
+        for offset_x in 0..prop.kind.footprint_width() {
+            let occupied = GridPosition {
+                x: prop.position.x + offset_x,
+                y: prop.position.y,
+            };
+            assert!(
+                !a.is_walkable(occupied),
+                "prop footprint must block {occupied:?}"
+            );
+        }
+    }
+    assert!(has_walkable_path(
+        &a,
+        a.entry,
+        a.points_of_interest[0].position
+    ));
+}
+
+#[test]
+fn props_round_trip_and_older_saves_default_to_no_props() {
+    let map = generate_local_map(12, "location.old_shrine", LocalMapConfig::default());
+    let json = serde_json::to_string(&map).expect("map with props should serialize");
+    let restored: LocalMap =
+        serde_json::from_str(&json).expect("map with props should deserialize");
+    assert_eq!(restored.props, map.props);
+
+    let mut old_value = serde_json::to_value(&map).expect("map should serialize");
+    let object = old_value.as_object_mut().expect("map should be an object");
+    object.remove("props");
+    object.remove("exits");
+    object.remove("layout_id");
+    let restored_old: LocalMap =
+        serde_json::from_value(old_value).expect("pre-prop map should remain loadable");
+    assert!(restored_old.props.is_empty());
+    assert!(restored_old.exits.is_empty());
+    assert!(restored_old.layout_id.is_none());
+}
+
+#[test]
+fn generated_map_has_valid_bounds_and_reachable_point_of_interest() {
+    for seed in 0..64 {
+        let map = generate_local_map(seed, "location.old_shrine", LocalMapConfig::default());
+        assert_eq!(
+            map.terrain.len(),
+            usize::from(map.width) * usize::from(map.height)
+        );
+        assert!(map.contains(map.entry));
+        assert!(map.is_walkable(map.entry));
+        let poi = &map.points_of_interest[0];
+        assert!(map.contains(poi.position));
+        assert!(map.is_walkable(poi.position));
+        assert!(has_walkable_path(&map, map.entry, poi.position));
+    }
+}
+
+#[test]
+fn authored_shrine_chamber_has_a_clear_doorway_and_deterministic_props() {
+    let map = generate_local_map_with_layout(
+        42,
+        "location.old_shrine",
+        LocalMapConfig::default(),
+        Some("shrine_chamber"),
+    );
+    let repeated = generate_local_map_with_layout(
+        42,
+        "location.old_shrine",
+        LocalMapConfig::default(),
+        Some("shrine_chamber"),
+    );
+    assert_eq!(map, repeated);
+
+    // The room has an enclosing wall ring with one explicit opening.
+    assert_eq!(
+        map.terrain_at(GridPosition { x: 2, y: 2 }),
+        Some(Terrain::Wall)
+    );
+    assert_eq!(
+        map.terrain_at(GridPosition { x: 3, y: 2 }),
+        Some(Terrain::Wall)
+    );
+    assert_eq!(
+        map.terrain_at(GridPosition { x: 3, y: 4 }),
+        Some(Terrain::Floor)
+    );
+    assert_eq!(
+        map.terrain_at(GridPosition { x: 5, y: 7 }),
+        Some(Terrain::Floor)
+    );
+    assert_eq!(
+        map.terrain_at(GridPosition { x: 4, y: 7 }),
+        Some(Terrain::Wall)
+    );
+
+    let pillar = map
+        .props
+        .iter()
+        .find(|prop| prop.id.ends_with(".room.pillar"))
+        .unwrap();
+    let table = map
+        .props
+        .iter()
+        .find(|prop| prop.id.ends_with(".room.table"))
+        .unwrap();
+    assert_eq!(pillar.position, GridPosition { x: 3, y: 5 });
+    assert_eq!(table.position, GridPosition { x: 5, y: 5 });
+    assert!(!map.is_walkable(pillar.position));
+    assert!(!map.is_walkable(table.position));
+    assert!(!map.is_walkable(GridPosition { x: 6, y: 5 }));
+
+    assert!(has_walkable_path(
+        &map,
+        map.entry,
+        map.points_of_interest[0].position
+    ));
+    assert!(has_walkable_path(
+        &map,
+        GridPosition { x: 5, y: 8 },
+        GridPosition { x: 4, y: 5 }
+    ));
+}
+
+#[test]
+fn authored_room_does_not_block_generated_edge_passages() {
+    for target_count in [2, 3, 4, 6, 8] {
+        let mut map = generate_local_map_with_layout(
+            42,
+            "location.old_shrine",
+            LocalMapConfig::default(),
+            Some("shrine_chamber"),
+        );
+        let targets = (0..target_count)
+            .map(|index| 100 + index as u64)
+            .collect::<Vec<_>>();
+        configure_map_exits(&mut map, &targets);
+        assert!(has_walkable_path(
+            &map,
+            map.entry,
+            map.points_of_interest[0].position
+        ));
+        assert_eq!(
+            map.terrain_at(GridPosition { x: 2, y: 5 }),
+            Some(Terrain::Wall)
+        );
+        assert_eq!(
+            map.terrain_at(GridPosition { x: 7, y: 5 }),
+            Some(Terrain::Wall)
+        );
+        assert!(map
+            .props
+            .iter()
+            .any(|prop| prop.id.ends_with(".room.pillar")));
+        assert!(map
+            .props
+            .iter()
+            .any(|prop| prop.id.ends_with(".room.table")));
+        for exit in &map.exits {
+            assert!(has_walkable_path(&map, map.entry, exit.position));
+        }
+    }
+}
+
+#[test]
+fn unknown_spatial_layout_falls_back_to_procedural_generation() {
+    let plain = generate_local_map(42, "location.test", LocalMapConfig::default());
+    let unknown = generate_local_map_with_layout(
+        42,
+        "location.test",
+        LocalMapConfig::default(),
+        Some("modded_layout_not_registered"),
+    );
+    assert_eq!(plain, unknown);
+}
+
+#[test]
+fn dimensions_are_normalized_and_map_is_bounded() {
+    let map = generate_local_map(
+        1,
+        "location.test",
+        LocalMapConfig {
+            width: 1,
+            height: u16::MAX,
+        },
+    );
+    assert_eq!(map.width, MIN_MAP_DIMENSION);
+    assert_eq!(map.height, MAX_MAP_DIMENSION);
+    assert_eq!(
+        map.terrain.len(),
+        usize::from(map.width) * usize::from(map.height)
+    );
+}
+
+#[test]
+fn connected_world_locations_get_reachable_edge_passages() {
+    let mut map = generate_local_map(42, "location.old_shrine", LocalMapConfig::default());
+    configure_map_exits(&mut map, &[11, 22, 33, 44, 22]);
+
+    assert_eq!(map.exits.len(), 4);
+    assert_eq!(
+        map.exits
+            .iter()
+            .map(|exit| exit.target_location_id)
+            .collect::<Vec<_>>(),
+        vec![11, 22, 33, 44]
+    );
+    for exit in &map.exits {
+        assert!(
+            exit.position.x == 0
+                || exit.position.x == map.width - 1
+                || exit.position.y == 0
+                || exit.position.y == map.height - 1,
+            "passage must be on a map edge"
+        );
+        assert!(map.is_walkable(exit.position));
+        assert!(has_walkable_path(&map, map.entry, exit.position));
+    }
+
+    let repeated = {
+        let mut repeated =
+            generate_local_map(42, "location.old_shrine", LocalMapConfig::default());
+        configure_map_exits(&mut repeated, &[11, 22, 33, 44, 22]);
+        repeated
+    };
+    assert_eq!(map.exits, repeated.exits);
+    assert_eq!(map.terrain, repeated.terrain);
+}
+
+#[test]
+fn generated_passages_remain_reachable_and_persistent_across_seeds() {
+    for seed in 0..32 {
+        for target_count in [1, 2, 3, 4, 6] {
+            let targets = (0..target_count)
+                .map(|index| 100 + index as u64)
+                .collect::<Vec<_>>();
+            let mut map = generate_local_map(
+                seed,
+                "location.spatial_exit_test",
+                LocalMapConfig::default(),
+            );
+            configure_map_exits(&mut map, &targets);
+
+            assert_eq!(map.exits.len(), target_count);
+            assert!(has_walkable_path(
+                &map,
+                map.entry,
+                map.points_of_interest[0].position
+            ));
+            for exit in &map.exits {
+                assert!(has_walkable_path(&map, map.entry, exit.position));
+                assert!(
+                    !map.props
+                        .iter()
+                        .any(|prop| { prop.footprint_contains(exit.position, map.width) }),
+                    "an exit corridor must clear blocking prop footprints"
+                );
+            }
+
+            let json = serde_json::to_string(&map).expect("map with passages should serialize");
+            let restored: LocalMap =
+                serde_json::from_str(&json).expect("map with passages should deserialize");
+            assert_eq!(restored.exits, map.exits);
+            assert_eq!(restored.terrain, map.terrain);
+        }
+    }
+}
+
+#[test]
+fn map_and_session_round_trip_through_serde() {
+    let mut map = generate_local_map(123, "location.old_shrine", LocalMapConfig::default());
+    let poi_id = map.points_of_interest[0].id.clone();
+    map.point_of_interest_mut(&poi_id).unwrap().discovered = true;
+    map.mark_tile_discovered(map.entry);
+    map.set_terrain(map.entry, Terrain::Rubble);
+    let json = serde_json::to_string(&map).expect("map should serialize");
+    let restored: LocalMap = serde_json::from_str(&json).expect("map should deserialize");
+    assert_eq!(restored, map);
+
+    let session = ExplorationSession {
+        location_id: map.location_id.clone(),
+        position: map.entry,
+    };
+    let json = serde_json::to_string(&session).expect("session should serialize");
+    let restored: ExplorationSession =
+        serde_json::from_str(&json).expect("session should deserialize");
+    assert_eq!(restored, session);
+}
