@@ -1,17 +1,19 @@
 # itch.io publishing
 
-The game page's long description is maintained in [`itchio-description.html`](itchio-description.html). Copy that file's contents into the itch.io page description.
+## Page description
 
-## GitHub Actions configuration
+The formatted page-description source is maintained in [`itchio-description.docx`](itchio-description.docx). Section titles use Word's Heading 2 style, corresponding to itch.io's recommended Header 2 formatting. The document is intended as a copy-and-paste source for the page's rich-text description editor; HTML source is not required.
 
-The Android workflow mirrors complete GitHub Releases to itch.io with Butler. It waits for the five desktop archives from the CI/CD workflow as well as the three Android APKs before publishing, so the two release workflows do not race each other.
+## GitHub Actions publishing
 
-Configure these repository-level Actions settings:
+The Android workflow mirrors complete GitHub Releases to itch.io with Butler. It waits for the five desktop archives from the CI/CD workflow as well as the three Android APKs before publishing, preventing the two release workflows from racing each other.
 
-- **Variable `ITCHIO_TARGET`** — the itch.io target in `username/game-slug` form. For a page such as `https://username.itch.io/game-slug`, use `username/game-slug`.
-- **Secret `BUTLER_API_KEY`** — an itch.io API key whose source is `wharf`. Butler reads this environment variable directly. Keep it in GitHub Secrets; never commit it or print it in workflow logs.
+The following repository-level Actions settings control the integration:
 
-If either setting is absent, the Android release workflow skips the itch.io mirror and continues uploading the APKs to the GitHub Release normally. Once both are configured, tag-based releases are mirrored automatically.
+- **Variable `ITCHIO_TARGET`** — the itch.io target in `username/game-slug` form. For a page such as `https://username.itch.io/game-slug`, the value is `username/game-slug`.
+- **Secret `BUTLER_API_KEY`** — an itch.io API key supplied to Butler through the `BUTLER_API_KEY` environment variable. The secret remains in GitHub Actions and is not stored in repository files or workflow output.
+
+When either setting is absent, the Android release workflow skips the itch.io mirror and continues uploading the APKs to the GitHub Release. When both settings are present, tag-based releases are mirrored automatically.
 
 ## itch.io channels
 
@@ -34,9 +36,9 @@ The GitHub release tag is passed to Butler as the user version for every channel
 
 ## Re-publishing an existing release
 
-For a full release rebuild, run the CI/CD workflow with `operation=release` and the Android APK workflow with `action=release`, using the same release tag and appropriate source branch. The Android publish job performs the itch.io mirror after the desktop and Android assets are available on that GitHub Release.
+A full release rebuild uses the CI/CD workflow with `operation=release` and the Android APK workflow with `action=release`, with the same release tag and appropriate source branch. The Android publish job performs the itch.io mirror after the desktop and Android assets are available on that GitHub Release.
 
-If the desktop assets are already present and only the Android APKs need to be rebuilt, running the Android workflow's `release` operation is sufficient.
+When desktop assets are already present and only the Android APKs need to be rebuilt, the Android workflow's `release` operation is sufficient.
 
 ## Butler reference
 
