@@ -6,7 +6,7 @@ edition = "2021"
 license = "BUSL-1.1"
 # ---- related to license, `data/` is under CC-BY-NC-ND 4.0 ----
 authors = ["right-ward"]
-repository = "https://github.com/Golden-Bastion/ashen_chronicle"
+repository = "https://github.com/Golden-Bastion/the-ever-unfolding-saga"
 description = "character-focused dark-fantasy RPG about self-directed adventures"
 publish = false
 
