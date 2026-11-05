@@ -61,11 +61,8 @@ fn loaded_preferences_are_clamped_to_supported_ranges() {
 #[test]
 fn touch_target_compensation_preserves_48_logical_pixels() {
     for scale in [0.75, 1.0, 1.25] {
-        let base_size =
-            touch_target_base_size(crate::bevy_presentation::UI_TOUCH_TARGET_PX, scale);
-        assert!(
-            (base_size * scale - crate::bevy_presentation::UI_TOUCH_TARGET_PX).abs() < 0.001
-        );
+        let base_size = touch_target_base_size(crate::bevy_presentation::UI_TOUCH_TARGET_PX, scale);
+        assert!((base_size * scale - crate::bevy_presentation::UI_TOUCH_TARGET_PX).abs() < 0.001);
     }
 }
 
@@ -135,9 +132,7 @@ fn applying_settings_updates_layout_typography_and_touch_targets() {
     let base_viewport_em = 720.0 * BASE_REM_VMIN_PERCENT;
     assert!((world.resource::<UiScale>().0 - 0.75).abs() < f32::EPSILON);
     assert!((world.resource::<RemSize>().0 - base_viewport_em * 1.5).abs() < 0.01);
-    assert!(
-        (world.get::<EmSize>(layout_node).unwrap().0 - base_viewport_em * 0.75).abs() < 0.01
-    );
+    assert!((world.get::<EmSize>(layout_node).unwrap().0 - base_viewport_em * 0.75).abs() < 0.01);
     assert!((world.get::<EmSize>(text_node).unwrap().0 - 20.0).abs() < 0.01);
 
     let touch_scale = if cfg!(target_os = "android") {

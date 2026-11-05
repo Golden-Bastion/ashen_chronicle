@@ -206,8 +206,7 @@ fn older_save_without_spatial_fields_loads_with_defaults() {
         runtime_generated_events: Vec::new(),
         mod_dependencies: Vec::new(),
     };
-    let mut json: serde_json::Value =
-        serde_json::to_value(payload).expect("save should serialize");
+    let mut json: serde_json::Value = serde_json::to_value(payload).expect("save should serialize");
     let world = json["game"]["world"]
         .as_object_mut()
         .expect("world should be an object");

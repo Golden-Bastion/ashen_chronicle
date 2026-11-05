@@ -163,9 +163,10 @@ fn authored_and_generated_factions_can_share_relationships() {
         .iter()
         .find(|faction| faction.name == generated_name)
         .expect("generated faction should remain present");
-    assert!(generated.memory.iter().any(|entry| {
-        entry.starts_with(RELATIONSHIP_MARKER) && entry.contains(&authored_name)
-    }));
+    assert!(generated
+        .memory
+        .iter()
+        .any(|entry| { entry.starts_with(RELATIONSHIP_MARKER) && entry.contains(&authored_name) }));
 }
 
 fn relationship_memories(state: &GameState) -> Vec<(EntityId, Vec<String>)> {

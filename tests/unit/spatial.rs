@@ -248,8 +248,7 @@ fn connected_world_locations_get_reachable_edge_passages() {
     }
 
     let repeated = {
-        let mut repeated =
-            generate_local_map(42, "location.old_shrine", LocalMapConfig::default());
+        let mut repeated = generate_local_map(42, "location.old_shrine", LocalMapConfig::default());
         configure_map_exits(&mut repeated, &[11, 22, 33, 44, 22]);
         repeated
     };

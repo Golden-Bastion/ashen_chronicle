@@ -138,8 +138,7 @@ fn generated_state_survives_serialization() {
         .unwrap()
         .dangerous = true;
     evolve_generated_world(&mut state);
-    let restored: GameState =
-        serde_json::from_slice(&serde_json::to_vec(&state).unwrap()).unwrap();
+    let restored: GameState = serde_json::from_slice(&serde_json::to_vec(&state).unwrap()).unwrap();
     assert!(restored
         .quests
         .iter()

@@ -203,9 +203,7 @@ fn camera_bounds_keep_the_viewport_inside_large_map_extents() {
     assert!(target.x <= half_width - viewport.x * 0.5 + 0.001);
     assert!(target.x >= -half_width + viewport.x * 0.5 - 0.001);
     assert!(target.y <= half_height - viewport.y * 0.5 + 0.001);
-    assert!(
-        target.y >= -half_height - (WALL_HEIGHT - TILE_HALF_HEIGHT) + viewport.y * 0.5 - 0.001
-    );
+    assert!(target.y >= -half_height - (WALL_HEIGHT - TILE_HALF_HEIGHT) + viewport.y * 0.5 - 0.001);
 }
 
 #[test]

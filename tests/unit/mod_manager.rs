@@ -32,8 +32,7 @@ fn asset_replacement_order_is_priority_then_stable_id() {
 
 #[test]
 fn asset_only_mods_are_valid_packages() {
-    let root =
-        std::env::temp_dir().join(format!("ashen_asset_only_mod_{}", std::process::id()));
+    let root = std::env::temp_dir().join(format!("ashen_asset_only_mod_{}", std::process::id()));
     let assets = root.join("assets").join("icons");
     fs::create_dir_all(&assets).expect("test asset directories should be created");
     let manifest = ModManifest {
