@@ -592,8 +592,8 @@ jobs:
           fi
 
           for asset in \
-            "the-ever-unfolding-saga-${TAG_NAME}-android-x86_64.tar.xz" \
-            "the-ever-unfolding-saga-${TAG_NAME}-android-aarch64.tar.xz" \
-            "the-ever-unfolding-saga-${TAG_NAME}-android-armv7.tar.xz"; do
+            "ashen_chronicle-${TAG_NAME}-android-x86_64.tar.xz" \
+            "ashen_chronicle-${TAG_NAME}-android-aarch64.tar.xz" \
+            "ashen_chronicle-${TAG_NAME}-android-armv7.tar.xz"; do
             gh release delete-asset "$TAG_NAME" "$asset" --yes --repo "$GITHUB_REPOSITORY" || true
           done
