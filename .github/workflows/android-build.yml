@@ -31,9 +31,14 @@ on:
         description: Existing release tag
         required: false
         type: string
+      version_suffix:
+        description: Display-only suffix appended after the package version
+        required: false
+        default: ''
+        type: string
 
 concurrency:
-  group: android-${{ github.ref }}-${{ inputs.action }}-${{ inputs.source }}-${{ inputs.target }}-${{ inputs.release }}
+  group: android-${{ github.ref }}-${{ inputs.action }}-${{ inputs.source }}-${{ inputs.target }}-${{ inputs.release }}-${{ inputs.version_suffix }}
   cancel-in-progress: true
 
 permissions:
@@ -290,6 +295,7 @@ jobs:
         shell: bash
         env:
           TARGET: ${{ matrix.target }}
+          EVER_UNFOLDING_SAGA_VERSION_SUFFIX: ${{ inputs.version_suffix }}
         run: |
           set -o pipefail
 

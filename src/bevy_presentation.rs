@@ -409,6 +409,10 @@ fn title_font_size() -> FontSize {
     FontSize::Rem(1.8)
 }
 
+fn screen_detail_font_size() -> FontSize {
+    FontSize::Rem(0.72)
+}
+
 fn label_font_size() -> FontSize {
     FontSize::Rem(1.0)
 }
@@ -489,6 +493,75 @@ pub fn spawn_screen(commands: &mut Commands, title: impl Into<String>) -> Entity
                 TextContent,
                 TextFont::from_font_size(title_font_size()),
                 TextColor(THEME_TEXT),
+            )],
+        ))
+        .id()
+}
+
+fn screen_header_row_node() -> Node {
+    Node {
+        width: percent(100),
+        min_width: px(0),
+        flex_direction: FlexDirection::Row,
+        flex_wrap: FlexWrap::Wrap,
+        column_gap: responsive_compact_gap(),
+        row_gap: px(2),
+        align_items: AlignItems::Center,
+        justify_content: JustifyContent::SpaceBetween,
+        ..default()
+    }
+}
+
+/// Creates a screen root with a secondary detail aligned to the right of its title.
+pub fn spawn_screen_with_right_detail(
+    commands: &mut Commands,
+    title: impl Into<String>,
+    detail: impl Into<String>,
+) -> Entity {
+    commands
+        .spawn((
+            BevyScreenRoot,
+            Node {
+                width: percent(100),
+                height: percent(100),
+                min_width: px(0),
+                min_height: px(0),
+                padding: UiRect::all(screen_padding()),
+                flex_direction: FlexDirection::Column,
+                row_gap: screen_gap(),
+                ..default()
+            },
+            BackgroundColor(THEME_BACKGROUND),
+            children![(
+                screen_header_row_node(),
+                children![
+                    (
+                        Text::new(title.into()),
+                        Node {
+                            min_width: px(0),
+                            flex_grow: 1.0,
+                            flex_shrink: 1.0,
+                            ..default()
+                        },
+                        TextLayout::new(Justify::Left, LineBreak::WordOrCharacter),
+                        TextContent,
+                        TextFont::from_font_size(title_font_size()),
+                        TextColor(THEME_TEXT),
+                    ),
+                    (
+                        Text::new(detail.into()),
+                        Node {
+                            min_width: px(0),
+                            max_width: percent(40),
+                            flex_shrink: 1.0,
+                            ..default()
+                        },
+                        TextLayout::new(Justify::Right, LineBreak::WordOrCharacter),
+                        TextContent,
+                        TextFont::from_font_size(screen_detail_font_size()),
+                        TextColor(THEME_MUTED),
+                    ),
+                ],
             )],
         ))
         .id()
@@ -2097,8 +2170,17 @@ mod tests {
     #[test]
     fn responsive_fonts_use_root_relative_units() {
         assert_eq!(title_font_size(), FontSize::Rem(1.8));
+        assert_eq!(screen_detail_font_size(), FontSize::Rem(0.72));
         assert_eq!(label_font_size(), FontSize::Rem(1.0));
         assert_eq!(muted_font_size(), FontSize::Rem(0.9));
+    }
+
+    #[test]
+    fn screen_header_row_keeps_the_detail_right_aligned() {
+        let row = screen_header_row_node();
+        assert_eq!(row.flex_direction, FlexDirection::Row);
+        assert_eq!(row.justify_content, JustifyContent::SpaceBetween);
+        assert_eq!(row.align_items, AlignItems::Center);
     }
 
     #[test]
