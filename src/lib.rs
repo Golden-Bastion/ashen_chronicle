@@ -4,7 +4,6 @@ mod bevy_combat;
 mod bevy_console;
 mod bevy_feedback;
 mod bevy_gameplay;
-mod bevy_input_diagnostics;
 mod bevy_interactions;
 mod bevy_lifecycle;
 mod bevy_navigation_bridge;
