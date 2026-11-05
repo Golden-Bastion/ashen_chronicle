@@ -1,6 +1,6 @@
 # The Ever-Unfolding Saga — Design Principles
 
-This document is the canonical record of the current product direction. It supersedes earlier design assumptions wherever they conflict, especially older descriptions of the game as fundamentally text-first. This includes conflicting product-identity wording in design issues [#228](https://github.com/right-ward/ashen_chronicle/issues/228) and [#229](https://github.com/right-ward/ashen_chronicle/issues/229); their scoped technical details remain useful where consistent with this document. These principles describe intended design, not a claim that every feature is already implemented. Existing behavior and prototype status remain documented in the roadmap and system references.
+This document is the canonical record of the current product direction. It supersedes earlier design assumptions wherever they conflict, especially older descriptions of the game as fundamentally text-first. This includes conflicting product-identity wording in design issues [#228](https://github.com/Golden-Bastion/ashen_chronicle/issues/228) and [#229](https://github.com/Golden-Bastion/ashen_chronicle/issues/229); their scoped technical details remain useful where consistent with this document. These principles describe intended design, not a claim that every feature is already implemented. Existing behavior and prototype status remain documented in the roadmap and system references.
 
 ## I. Core identity and player agency
 
