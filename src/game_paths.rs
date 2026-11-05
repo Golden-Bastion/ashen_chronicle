@@ -227,34 +227,5 @@ fn copy_directory_without_overwriting(source: &Path, destination: &Path) -> io::
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn user_data_paths_are_grouped_under_one_root() {
-        let root = PathBuf::from("/tmp/ever-unfolding-saga");
-        assert_eq!(root.join(SAVES_DIRECTORY_NAME), root.join("saves"));
-        assert_eq!(root.join(MODS_DIRECTORY_NAME), root.join("mods"));
-        assert_eq!(root.join(IMPORTS_DIRECTORY_NAME), root.join("imports"));
-    }
-
-    #[test]
-    fn bundled_mod_seeding_does_not_overwrite_user_files() {
-        let root = std::env::temp_dir().join(format!(
-            "ever_unfolding_saga_seed_test_{}",
-            std::process::id()
-        ));
-        let source = root.join("source");
-        let target = root.join("target");
-        fs::create_dir_all(source.join("example")).unwrap();
-        fs::create_dir_all(target.join("example")).unwrap();
-        fs::write(source.join("example/manifest.json"), "bundled").unwrap();
-        fs::write(target.join("example/manifest.json"), "user").unwrap();
-        copy_directory_without_overwriting(&source, &target).unwrap();
-        assert_eq!(
-            fs::read_to_string(target.join("example/manifest.json")).unwrap(),
-            "user"
-        );
-        fs::remove_dir_all(root).unwrap();
-    }
-}
+#[path = "../tests/unit/game_paths.rs"]
+mod tests;

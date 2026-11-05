@@ -1,0 +1,157 @@
+#[test]
+fn start_options_index_accounts_for_load_slot() {
+    let mut lifecycle = super::LifecycleState::default();
+    assert_eq!(super::start_option_count(&lifecycle), 3);
+    assert_eq!(super::start_options_index(&lifecycle), 1);
+
+    lifecycle
+        .save_files
+        .push(std::path::PathBuf::from("save.json"));
+    assert_eq!(super::start_option_count(&lifecycle), 4);
+    assert_eq!(super::start_options_index(&lifecycle), 2);
+}
+
+use super::*;
+
+#[test]
+fn display_version_uses_package_version_when_no_suffix_is_supplied() {
+    assert_eq!(format_display_version("0.52.3", None), "v0.52.3");
+    assert_eq!(format_display_version("0.52.3", Some("  ")), "v0.52.3");
+}
+
+#[test]
+fn display_version_appends_custom_suffix_with_a_single_separator() {
+    assert_eq!(
+        format_display_version("0.52.3", Some("custom-preview")),
+        "v0.52.3-custom-preview"
+    );
+    assert_eq!(
+        format_display_version("0.52.3", Some("-custom-preview")),
+        "v0.52.3-custom-preview"
+    );
+}
+
+#[test]
+fn quit_confirmation_can_return_to_gameplay() {
+    let mut lifecycle = LifecycleState::default();
+    let state = create_new_state(
+        "Test World",
+        WorldMode::New,
+        "Tester".to_string(),
+        "Ash Walker".to_string(),
+    );
+    lifecycle.session = Some(GameSession {
+        state,
+        save_path: PathBuf::from("saves/test.json.gz"),
+    });
+    lifecycle.phase = LifecyclePhase::QuitConfirm;
+    lifecycle.selected = 1;
+
+    let mut navigation = NavigationState {
+        current_screen: Some(ScreenId::Lifecycle),
+        return_screen: Some(ScreenId::Gameplay),
+        selected: 1,
+    };
+
+    lifecycle.cancel_quit_confirmation(&mut navigation);
+
+    assert_eq!(lifecycle.phase, LifecyclePhase::Complete);
+    assert_eq!(navigation.current_screen, Some(ScreenId::Gameplay));
+    assert_eq!(navigation.return_screen, None);
+    assert_eq!(lifecycle.selected, 0);
+    assert!(!lifecycle.dirty);
+}
+
+#[test]
+fn options_activation_keeps_navigation_on_the_options_screen() {
+    let mut lifecycle = LifecycleState::default();
+    let mut navigation = NavigationState {
+        current_screen: Some(ScreenId::Lifecycle),
+        return_screen: None,
+        selected: 0,
+    };
+
+    lifecycle.phase = LifecyclePhase::Start;
+    lifecycle.selected = 1;
+
+    super::activate_selection(&mut lifecycle, &mut navigation);
+
+    assert_eq!(navigation.current_screen, Some(ScreenId::Options));
+    assert_eq!(navigation.return_screen, Some(ScreenId::Lifecycle));
+}
+
+#[test]
+fn load_back_returns_to_the_start_screen() {
+    let mut lifecycle = LifecycleState {
+        phase: LifecyclePhase::Load,
+        ..LifecycleState::default()
+    };
+    lifecycle
+        .save_files
+        .push(std::path::PathBuf::from("saves/test.json.gz"));
+    lifecycle.selected = lifecycle.save_files.len();
+    let mut navigation = NavigationState {
+        current_screen: Some(ScreenId::Lifecycle),
+        return_screen: None,
+        selected: lifecycle.selected,
+    };
+
+    super::activate_selection(&mut lifecycle, &mut navigation);
+
+    assert_eq!(lifecycle.phase, LifecyclePhase::Start);
+    assert_eq!(lifecycle.selected, 0);
+    assert_eq!(navigation.current_screen, Some(ScreenId::Lifecycle));
+    assert_eq!(navigation.selected, 0);
+}
+
+#[test]
+fn lifecycle_renderer_allows_initial_screen_but_not_dedicated_screen_overwrite() {
+    assert!(super::should_render_lifecycle(None));
+    assert!(super::should_render_lifecycle(Some(ScreenId::Lifecycle)));
+    assert!(!super::should_render_lifecycle(Some(ScreenId::Options)));
+    assert!(!super::should_render_lifecycle(Some(ScreenId::Gameplay)));
+}
+
+#[test]
+fn start_screen_has_expected_options_without_saves() {
+    let state = LifecycleState::default();
+    assert_eq!(start_option_count(&state), 3);
+    assert!(!start_has_load(&state));
+}
+
+#[test]
+fn character_save_paths_use_the_dedicated_saves_directory() {
+    let saves_dir = PathBuf::from("saves");
+    let path = character_save_path(&saves_dir, "Ash Walker");
+    assert_eq!(path.parent(), Some(saves_dir.as_path()));
+    assert_eq!(
+        path.file_name().and_then(|name| name.to_str()),
+        Some("ever_unfolding_saga_save_Ash Walker.json.gz")
+    );
+}
+
+#[test]
+fn android_text_snapshots_replace_the_buffer_and_reset_the_cursor() {
+    let mut field = EditableText::new("The Ashen Crown");
+
+    field.queue_edit(TextEdit::Insert("stale pending edit".into()));
+    super::replace_text_snapshot(&mut field, "Málaga 🜏");
+
+    assert_eq!(field.value().to_string(), "Málaga 🜏");
+    assert_eq!(field.pending_edits.len(), 1);
+    assert_eq!(field.pending_edits[0], TextEdit::TextEnd(false));
+
+    super::replace_text_snapshot(&mut field, "Short");
+
+    assert_eq!(field.value().to_string(), "Short");
+    assert_eq!(field.pending_edits.len(), 1);
+    assert_eq!(field.pending_edits[0], TextEdit::TextEnd(false));
+}
+
+#[test]
+fn default_creation_values_match_legacy_flow() {
+    let state = LifecycleState::default();
+    assert_eq!(state.world_name, "The Ashen Crown");
+    assert!(state.character_name.is_empty());
+    assert_eq!(state.character_title, "Ash Walker");
+}

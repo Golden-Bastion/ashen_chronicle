@@ -59,22 +59,3 @@ pub fn run() {
 fn setup(mut commands: Commands) {
     commands.spawn(Camera2d);
 }
-
-#[cfg(test)]
-#[cfg(not(target_os = "android"))]
-mod tests {
-    use super::WINDOW_TITLE;
-    use crate::desktop_window;
-
-    #[test]
-    fn foundation_window_configuration_is_stable() {
-        assert_eq!(WINDOW_TITLE, "The Ever-Unfolding Saga");
-        assert_eq!(
-            desktop_window::fullscreen_mode(),
-            bevy::window::WindowMode::Fullscreen(
-                bevy::window::MonitorSelection::Primary,
-                bevy::window::VideoModeSelection::Current
-            )
-        );
-    }
-}

@@ -44,21 +44,5 @@ fn track_window_lifecycle(
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn default_runtime_state_is_active() {
-        let state = RuntimeLifecycleState::default();
-        assert_eq!(state.app_lifecycle, AppLifecycle::Running);
-        assert!(state.window_focused);
-    }
-
-    #[test]
-    fn lifecycle_states_match_bevy_activity_semantics() {
-        assert!(AppLifecycle::Running.is_active());
-        assert!(AppLifecycle::WillSuspend.is_active());
-        assert!(!AppLifecycle::Suspended.is_active());
-        assert!(AppLifecycle::WillResume.is_active());
-    }
-}
+#[path = "../tests/unit/bevy_runtime.rs"]
+mod tests;

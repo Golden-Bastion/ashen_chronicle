@@ -66,11 +66,5 @@ fn load_window_icon() -> Option<winit::window::Icon> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn canonical_app_icon_decodes() {
-        assert!(load_window_icon().is_some());
-    }
-}
+#[path = "../tests/unit/desktop_window.rs"]
+mod tests;
