@@ -30,3 +30,6 @@ The product direction is a character-focused, graphics-first spatial RPG backed 
 
 Major gameplay work should remain data-driven where practical, preserve backward compatibility, and include focused tests for behavior affected by the change.
 
+## Release distribution
+
+GitHub Release publishing can optionally mirror all five desktop builds and three Android APKs to itch.io through Butler. The Android release workflow waits for the complete set of release assets before uploading them to their corresponding platform/architecture channels. Enable the mirror by configuring the repository Actions variable `ITCHIO_TARGET` and secret `BUTLER_API_KEY`; without both values, GitHub Release publishing continues without the itch.io upload.

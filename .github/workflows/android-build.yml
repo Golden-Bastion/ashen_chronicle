@@ -564,6 +564,7 @@ jobs:
       (github.event_name == 'workflow_dispatch' && inputs.action == 'release')
     needs: build
     runs-on: ubuntu-latest
+    timeout-minutes: 120
     permissions:
       contents: write
 
@@ -596,4 +597,170 @@ jobs:
             echo "Timed out waiting for GitHub Release $TAG_NAME."
             exit 1
           fi
+
+      - name: Check itch.io publishing configuration
+        id: itch_config
+        shell: bash
+        env:
+          ITCHIO_TARGET: ${{ vars.ITCHIO_TARGET }}
+          BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "$ITCHIO_TARGET" || -z "$BUTLER_API_KEY" ]]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Skipping itch.io publishing; configure the ITCHIO_TARGET repository variable and BUTLER_API_KEY repository secret to enable it."
+            exit 0
+          fi
+
+          if [[ ! "$ITCHIO_TARGET" =~ ^[a-z0-9_-]+/[a-z0-9_-]+$ ]]; then
+            echo "::error::ITCHIO_TARGET must use the lowercase username/game-slug format."
+            exit 1
+          fi
+
+          echo "enabled=true" >> "$GITHUB_OUTPUT"
+
+      - name: Install Butler
+        if: steps.itch_config.outputs.enabled == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          archive="$RUNNER_TEMP/butler-linux-amd64.zip"
+          install_dir="$RUNNER_TEMP/butler"
+          mkdir -p "$install_dir"
+
+          curl --fail --location --retry 3 \
+            https://broth.itch.zone/butler/linux-amd64/LATEST/archive/default \
+            --output "$archive"
+          unzip -q "$archive" -d "$install_dir"
+          chmod +x "$install_dir/butler"
+          echo "$install_dir" >> "$GITHUB_PATH"
+          "$install_dir/butler" version
+
+      - name: Wait for desktop release assets
+        if: steps.itch_config.outputs.enabled == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_NAME: ${{ github.event_name == 'workflow_dispatch' && inputs.release || github.ref_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          expected_assets=(
+            "the-ever-unfolding-saga-$TAG_NAME-linux-x86_64.tar.xz"
+            "the-ever-unfolding-saga-$TAG_NAME-linux-aarch64.tar.xz"
+            "the-ever-unfolding-saga-$TAG_NAME-macos-aarch64.tar.xz"
+            "the-ever-unfolding-saga-$TAG_NAME-windows-x86_64.zip"
+            "the-ever-unfolding-saga-$TAG_NAME-windows-aarch64.zip"
+            "the-ever-unfolding-saga-$TAG_NAME-android-x86_64.apk"
+            "the-ever-unfolding-saga-$TAG_NAME-android-aarch64.apk"
+            "the-ever-unfolding-saga-$TAG_NAME-android-armv7.apk"
+          )
+
+          missing=()
+          for attempt in {1..120}; do
+            release_assets="$(gh release view "$TAG_NAME" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' 2>/dev/null || true)"
+            missing=()
+            for asset in "${expected_assets[@]}"; do
+              if ! grep -Fxq -- "$asset" <<< "$release_assets"; then
+                missing+=("$asset")
+              fi
+            done
+
+            if [[ "${#missing[@]}" -eq 0 ]]; then
+              echo "All desktop and Android release assets are available."
+              break
+            fi
+
+            echo "Waiting for release assets (attempt $attempt/120): ${missing[*]}"
+            sleep 30
+          done
+
+          if [[ "${#missing[@]}" -ne 0 ]]; then
+            printf 'Timed out waiting for release assets:\n'
+            printf '  %s\n' "${missing[@]}"
+            exit 1
+          fi
+
+          mkdir -p dist
+          rm -f dist/*.apk
+          gh release download "$TAG_NAME" \
+            --repo "$GITHUB_REPOSITORY" \
+            --dir dist \
+            --pattern 'the-ever-unfolding-saga-*'
+
+          for asset in "${expected_assets[@]}"; do
+            if [[ ! -s "dist/$asset" ]]; then
+              echo "Downloaded release asset is missing or empty: $asset"
+              exit 1
+            fi
+          done
+
+      - name: Prepare desktop builds for Butler
+        if: steps.itch_config.outputs.enabled == 'true'
+        env:
+          TAG_NAME: ${{ github.event_name == 'workflow_dispatch' && inputs.release || github.ref_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          build_root="$RUNNER_TEMP/itch-builds"
+          mkdir -p "$build_root"
+
+          for channel in linux-x86_64 linux-aarch64 macos-aarch64; do
+            archive="dist/the-ever-unfolding-saga-$TAG_NAME-$channel.tar.xz"
+            destination="$build_root/$channel"
+            mkdir -p "$destination"
+            tar -xJf "$archive" --strip-components=1 -C "$destination"
+
+            if [[ ! -d "$destination/data" || ! -f "$destination/ever_unfolding_saga" ]]; then
+              echo "Unexpected desktop package contents in $archive."
+              exit 1
+            fi
+            chmod +x "$destination/ever_unfolding_saga"
+          done
+
+          for channel in windows-x86_64 windows-aarch64; do
+            archive="dist/the-ever-unfolding-saga-$TAG_NAME-$channel.zip"
+            archive_root="the-ever-unfolding-saga-$TAG_NAME-$channel"
+            extract_dir="$RUNNER_TEMP/itch-extract-$channel"
+            destination="$build_root/$channel"
+            mkdir -p "$extract_dir" "$destination"
+            unzip -q "$archive" -d "$extract_dir"
+
+            if [[ ! -d "$extract_dir/$archive_root" ]]; then
+              echo "Expected package directory not found in $archive."
+              exit 1
+            fi
+            cp -a "$extract_dir/$archive_root/." "$destination/"
+
+            if [[ ! -d "$destination/data" || ! -f "$destination/ever_unfolding_saga.exe" ]]; then
+              echo "Unexpected desktop package contents in $archive."
+              exit 1
+            fi
+          done
+
+      - name: Publish all release builds to itch.io
+        if: steps.itch_config.outputs.enabled == 'true'
+        env:
+          BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
+          ITCHIO_TARGET: ${{ vars.ITCHIO_TARGET }}
+          TAG_NAME: ${{ github.event_name == 'workflow_dispatch' && inputs.release || github.ref_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          for channel in linux-x86_64 linux-aarch64 macos-aarch64 windows-x86_64 windows-aarch64; do
+            echo "Publishing $channel"
+            butler push "$RUNNER_TEMP/itch-builds/$channel" "$ITCHIO_TARGET:$channel" --userversion "$TAG_NAME"
+          done
+
+          for arch in x86_64 aarch64 armv7; do
+            apk="dist/the-ever-unfolding-saga-$TAG_NAME-android-$arch.apk"
+            channel="android-$arch"
+            echo "Publishing $channel"
+            butler push "$apk" "$ITCHIO_TARGET:$channel" --userversion "$TAG_NAME"
+          done
+
 
