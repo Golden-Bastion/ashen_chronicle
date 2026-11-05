@@ -266,23 +266,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ever_unfolding_saga"
-version = "0.52.3"
-dependencies = [
- "atomic-write-file",
- "bevy",
- "bevy_picking",
- "dirs",
- "flate2",
- "jni",
- "png",
- "rfd",
- "serde",
- "serde_json",
- "winit",
-]
-
-[[package]]
 name = "assert_type_match"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2270,6 +2253,23 @@ checksum = "8be9f3dfaaffdae2972880079a491a1a8bb7cbed0b8dd7a347f668b4150a3b93"
 dependencies = [
  "event-listener",
  "pin-project-lite",
+]
+
+[[package]]
+name = "ever_unfolding_saga"
+version = "0.52.3"
+dependencies = [
+ "atomic-write-file",
+ "bevy",
+ "bevy_picking",
+ "dirs",
+ "flate2",
+ "jni",
+ "png",
+ "rfd",
+ "serde",
+ "serde_json",
+ "winit",
 ]
 
 [[package]]
