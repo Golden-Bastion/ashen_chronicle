@@ -266,7 +266,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "ashen_chronicle"
+name = "ever_unfolding_saga"
 version = "0.52.3"
 dependencies = [
  "atomic-write-file",

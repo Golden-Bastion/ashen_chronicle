@@ -204,7 +204,7 @@ pub(crate) fn android_take_text_input_events(target: u8) -> Vec<AndroidTextInput
 
 #[cfg(target_os = "android")]
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_com_rightward_ashenchronicle_MainActivity_nativeBackNavigation(
+pub extern "system" fn Java_com_rightward_everunfoldingsaga_MainActivity_nativeBackNavigation(
     _env: jni::EnvUnowned<'_>,
     _class: jni::objects::JClass<'_>,
 ) {
@@ -213,7 +213,7 @@ pub extern "system" fn Java_com_rightward_ashenchronicle_MainActivity_nativeBack
 
 #[cfg(target_os = "android")]
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_com_rightward_ashenchronicle_MainActivity_nativeAndroidTextInputChanged(
+pub extern "system" fn Java_com_rightward_everunfoldingsaga_MainActivity_nativeAndroidTextInputChanged(
     mut env: jni::EnvUnowned<'_>,
     _class: jni::objects::JClass<'_>,
     target: i32,
@@ -239,7 +239,7 @@ pub extern "system" fn Java_com_rightward_ashenchronicle_MainActivity_nativeAndr
 
 #[cfg(target_os = "android")]
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_com_rightward_ashenchronicle_MainActivity_nativeAndroidTextInputSubmitted(
+pub extern "system" fn Java_com_rightward_everunfoldingsaga_MainActivity_nativeAndroidTextInputSubmitted(
     _env: jni::EnvUnowned<'_>,
     _class: jni::objects::JClass<'_>,
     target: i32,
@@ -249,7 +249,7 @@ pub extern "system" fn Java_com_rightward_ashenchronicle_MainActivity_nativeAndr
 
 #[cfg(target_os = "android")]
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_com_rightward_ashenchronicle_MainActivity_nativeAndroidTextInputDismissed(
+pub extern "system" fn Java_com_rightward_everunfoldingsaga_MainActivity_nativeAndroidTextInputDismissed(
     _env: jni::EnvUnowned<'_>,
     _class: jni::objects::JClass<'_>,
     target: i32,

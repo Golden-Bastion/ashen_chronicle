@@ -1,13 +1,13 @@
 [package]
-name = "ashen_chronicle"
+name = "ever_unfolding_saga"
 
 version = "0.52.3"
 edition = "2021"
 license = "BUSL-1.1"
 # ---- related to license, `data/` is under CC-BY-NC-ND 4.0 ----
 authors = ["right-ward"]
-repository = "https://github.com/right-ward/ashen_chronicle"
-description = "roguelike dark fantasy game"
+repository = "https://github.com/Golden-Bastion/the-ever-unfolding-saga"
+description = "character-focused dark-fantasy RPG about self-directed adventures"
 publish = false
 
 [lib]

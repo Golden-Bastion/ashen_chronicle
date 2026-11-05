@@ -1,4 +1,4 @@
-Ashen Chronicle - Android (Java/Gradle) dependencies
+The Ever-Unfolding Saga - Android (Java/Gradle) dependencies
 
 The Android app wrapper links the following libraries directly (versions from
 android/gradle/libs.versions.toml at the time of writing):

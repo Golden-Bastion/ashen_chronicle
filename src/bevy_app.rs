@@ -15,7 +15,7 @@ use crate::{
     bevy_records, bevy_runtime, bevy_spatial, bevy_touch, ui_settings,
 };
 
-const WINDOW_TITLE: &str = "The Ashen Chronicle";
+const WINDOW_TITLE: &str = "The Ever-Unfolding Saga";
 
 pub fn run() {
     let window_resolution = (1280, 720);
@@ -69,7 +69,7 @@ mod tests {
 
     #[test]
     fn foundation_window_configuration_is_stable() {
-        assert_eq!(WINDOW_TITLE, "The Ashen Chronicle");
+        assert_eq!(WINDOW_TITLE, "The Ever-Unfolding Saga");
         assert_eq!(
             desktop_window::fullscreen_mode(),
             bevy::window::WindowMode::Fullscreen(

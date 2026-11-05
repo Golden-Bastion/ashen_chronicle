@@ -430,7 +430,7 @@ fn import_save(options: &mut OptionsState, _lifecycle: &mut LifecycleState) {
     {
         let Some(source) = rfd::FileDialog::new()
             .set_title("Import a save")
-            .add_filter("Ashen Chronicle saves", &["gz", "json", "save"])
+            .add_filter("The Ever-Unfolding Saga saves", &["gz", "json", "save"])
             .pick_file()
         else {
             options.message = Some("Save import cancelled.".to_string());
@@ -467,7 +467,7 @@ fn export_save(options: &mut OptionsState, source: &std::path::Path) {
     let file_name = source
         .file_name()
         .map(|name| name.to_string_lossy().to_string())
-        .unwrap_or_else(|| "ashen_chronicle_save.json.gz".to_string());
+        .unwrap_or_else(|| "ever_unfolding_saga_save.json.gz".to_string());
     #[cfg(not(target_os = "android"))]
     {
         let Some(destination) = rfd::FileDialog::new()

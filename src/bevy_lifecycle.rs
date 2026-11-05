@@ -700,7 +700,7 @@ fn should_render_lifecycle(current_screen: Option<ScreenId>) -> bool {
 }
 
 fn render(commands: &mut Commands, lifecycle: &LifecycleState) {
-    let root = bevy_presentation::spawn_screen(commands, "THE ASHEN CHRONICLE");
+    let root = bevy_presentation::spawn_screen(commands, "THE EVER-UNFOLDING SAGA");
     let panel = bevy_presentation::spawn_panel(commands, root);
 
     match lifecycle.phase {
@@ -1371,7 +1371,7 @@ mod tests {
         assert_eq!(path.parent(), Some(saves_dir.as_path()));
         assert_eq!(
             path.file_name().and_then(|name| name.to_str()),
-            Some("ashen_chronicle_save_Ash Walker.json.gz")
+            Some("ever_unfolding_saga_save_Ash Walker.json.gz")
         );
     }
 

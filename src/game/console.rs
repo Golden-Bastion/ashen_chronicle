@@ -19,7 +19,7 @@ impl Default for ConsoleSession {
         let mut state = console_ui::ConsoleState::default();
         state
             .output
-            .push("Ashen Chronicle developer console".into());
+            .push("The Ever-Unfolding Saga developer console".into());
         state
             .output
             .push("help for commands | Tab completion | Esc closes".into());

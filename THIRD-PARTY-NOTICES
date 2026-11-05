@@ -1,8 +1,8 @@
-Ashen Chronicle - Third-Party Notices
+The Ever-Unfolding Saga - Third-Party Notices
 
 Copyright 2026 right-ward
 
-This file describes Ashen Chronicle as of version 0.50.17 and stays in effect
+This file describes The Ever-Unfolding Saga as of version 0.50.17 and stays in effect
 until replaced.
 
 1. Third-party Game Content
@@ -13,7 +13,7 @@ required notices must be recorded here and in REUSE.toml before release.
 
 2. Third-party software
 
-Builds of Ashen Chronicle include third-party software libraries (Rust crates
+Builds of The Ever-Unfolding Saga include third-party software libraries (Rust crates
 and, on Android, AndroidX/Google libraries). Each keeps its own license.
 Their copyright notices and license texts are reproduced in:
 
@@ -23,7 +23,7 @@ Their copyright notices and license texts are reproduced in:
     ANDROID-DEPENDENCIES.txt).
 
 Some components are licensed under licenses (such as MPL-2.0) that require
-their source code to be available. Ashen Chronicle uses these components
+their source code to be available. The Ever-Unfolding Saga uses these components
 unmodified. Their source code is available from the repositories and package
 registries listed in THIRD-PARTY-LICENSES.txt.
 

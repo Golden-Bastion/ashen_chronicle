@@ -1,10 +1,10 @@
-# The Ashen Chronicle
+# The Ever-Unfolding Saga
 
 ## Development Plan
 
 ## 1) Core vision
 
-The Ashen Chronicle is a dark-fantasy, text-first RPG with permadeath, procedural world generation, and persistent world inheritance. The player creates a character, plays through a run, and when that character dies they choose one of two paths: start a completely new world, or inherit the existing world and create a new character inside it.
+The Ever-Unfolding Saga is a dark-fantasy, text-first RPG with permadeath, procedural world generation, and persistent world inheritance. The player creates a character, plays through a run, and when that character dies they choose one of two paths: start a completely new world, or inherit the existing world and create a new character inside it.
 
 If the player inherits, the world keeps its changes, consequences, dead bodies, abandoned items, destroyed places, faction shifts, records, and other long-term effects. The old character is gone, but the world remembers them.
 

@@ -25,8 +25,8 @@ A new local keystore can be created with the JDK's `keytool`, for example:
 
 ```text
 keytool -genkeypair -v \
-  -keystore ashen-chronicle-release.keystore \
-  -alias ashen-chronicle \
+  -keystore ever-unfolding-saga-release.keystore \
+  -alias ever-unfolding-saga \
   -keyalg RSA \
   -keysize 2048 \
   -validity 10000
@@ -35,6 +35,8 @@ keytool -genkeypair -v \
 Encode that keystore for the `ANDROID_KEYSTORE_BASE64` secret without adding the file to the repository. The remaining secret values must match the keystore created above.
 
 ## Android storage
+
+The application ID is `com.rightward.everunfoldingsaga`. This is a new Android application identity, so Android installs it as a separate app rather than upgrading the previous package. Private files are not transferred between the two applications. Export saves from the previous installation and import them into the new app before uninstalling the older one; uninstalling it first removes its private app data.
 
 Android stores all active game data in the application's private files directory. Rust resolves that single internal root through the Activity's `getNativeGameRootPath()` method. The game does not request a shared-folder tree permission and does not synchronize data to public storage.
 

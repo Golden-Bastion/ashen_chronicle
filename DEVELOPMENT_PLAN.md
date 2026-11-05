@@ -1,8 +1,8 @@
-# The Ashen Chronicle
+# The Ever-Unfolding Saga
 
 ## Development Plan
 
-Ashen Chronicle is a character-focused dark-fantasy RPG built around exploration, relationships, consequential choices, death and legacy, and a persistent world. The intended direction is graphics-first spatial gameplay, with text retained for dialogue, records, descriptions, history, and contextual feedback. The existing implementation may lag behind this direction; consult the roadmap for current delivery status.
+The Ever-Unfolding Saga is a character-focused dark-fantasy RPG built around exploration, relationships, personal ambitions, consequential choices, and a persistent world. The intended direction is graphics-first spatial gameplay, with text retained for dialogue, records, descriptions, history, and contextual feedback. The existing implementation may lag behind this direction; consult the roadmap for current delivery status.
 
 ## Development priorities
 
