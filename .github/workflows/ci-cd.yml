@@ -46,9 +46,14 @@ on:
         required: false
         default: false
         type: boolean
+      version_suffix:
+        description: Display-only suffix appended after the package version (a leading hyphen is optional)
+        required: false
+        default: ''
+        type: string
 
 concurrency:
-  group: cd-${{ github.ref }}-${{ inputs.operation }}-${{ inputs.branch }}-${{ inputs.target }}-${{ inputs.release_tag }}
+  group: cd-${{ github.ref }}-${{ inputs.operation }}-${{ inputs.branch }}-${{ inputs.target }}-${{ inputs.release_tag }}-${{ inputs.version_suffix }}
   cancel-in-progress: true
 
 permissions:
@@ -316,6 +321,7 @@ jobs:
           ARCH: ${{ matrix.arch }}
           DEBUG_BUILD: ${{ inputs.debug_build }}
           OPERATION: ${{ inputs.operation }}
+          EVER_UNFOLDING_SAGA_VERSION_SUFFIX: ${{ inputs.version_suffix }}
         run: |
           set -euo pipefail
 

@@ -699,8 +699,32 @@ fn should_render_lifecycle(current_screen: Option<ScreenId>) -> bool {
     current_screen.is_none() || current_screen == Some(ScreenId::Lifecycle)
 }
 
+fn display_version_label() -> String {
+    format_display_version(
+        env!("CARGO_PKG_VERSION"),
+        option_env!("EVER_UNFOLDING_SAGA_VERSION_SUFFIX"),
+    )
+}
+
+fn format_display_version(package_version: &str, suffix: Option<&str>) -> String {
+    let suffix = suffix.map(str::trim).filter(|suffix| !suffix.is_empty());
+    match suffix {
+        Some(suffix) if suffix.starts_with('-') => format!("v{package_version}{suffix}"),
+        Some(suffix) => format!("v{package_version}-{suffix}"),
+        None => format!("v{package_version}"),
+    }
+}
+
 fn render(commands: &mut Commands, lifecycle: &LifecycleState) {
-    let root = bevy_presentation::spawn_screen(commands, "THE EVER-UNFOLDING SAGA");
+    let root = if lifecycle.phase == LifecyclePhase::Start {
+        bevy_presentation::spawn_screen_with_right_detail(
+            commands,
+            "THE EVER-UNFOLDING SAGA",
+            display_version_label(),
+        )
+    } else {
+        bevy_presentation::spawn_screen(commands, "THE EVER-UNFOLDING SAGA")
+    };
     let panel = bevy_presentation::spawn_panel(commands, root);
 
     match lifecycle.phase {
@@ -1275,6 +1299,24 @@ mod tests {
     }
 
     use super::*;
+
+    #[test]
+    fn display_version_uses_package_version_when_no_suffix_is_supplied() {
+        assert_eq!(format_display_version("0.52.3", None), "v0.52.3");
+        assert_eq!(format_display_version("0.52.3", Some("  ")), "v0.52.3");
+    }
+
+    #[test]
+    fn display_version_appends_custom_suffix_with_a_single_separator() {
+        assert_eq!(
+            format_display_version("0.52.3", Some("custom-preview")),
+            "v0.52.3-custom-preview"
+        );
+        assert_eq!(
+            format_display_version("0.52.3", Some("-custom-preview")),
+            "v0.52.3-custom-preview"
+        );
+    }
 
     #[test]
     fn quit_confirmation_can_return_to_gameplay() {
