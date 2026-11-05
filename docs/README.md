@@ -8,7 +8,6 @@ This directory contains the project's detailed technical and historical document
 - [`architecture.md`](architecture.md) — overall codebase architecture, module boundaries, responsibilities, and technical design rules.
 - [`systems/`](systems/) — documentation for individual game systems.
 - [`roadmap-history.md`](roadmap-history.md) — historical record of completed roadmap milestones.
-- [`itchio-description.docx`](itchio-description.docx) — formatted rich-text source for the itch.io project description.
 - [`itchio-publishing.md`](itchio-publishing.md) — GitHub Actions and Butler release-publishing reference.
 - [`development-plan-history.md`](development-plan-history.md) — historical record of the original development plan.
 
