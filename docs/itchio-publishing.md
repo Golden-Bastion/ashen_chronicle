@@ -1,9 +1,5 @@
 # itch.io publishing
 
-## Page description
-
-The formatted page-description source is maintained in [`itchio-description.docx`](itchio-description.docx). Section titles use Word's Heading 2 style, corresponding to itch.io's recommended Header 2 formatting. The document is intended as a copy-and-paste source for the page's rich-text description editor; HTML source is not required.
-
 ## GitHub Actions publishing
 
 The Android workflow mirrors complete GitHub Releases to itch.io with Butler. It waits for the five desktop archives from the CI/CD workflow as well as the three Android APKs before publishing, preventing the two release workflows from racing each other.
