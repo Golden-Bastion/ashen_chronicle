@@ -684,6 +684,7 @@ jobs:
           fi
 
           mkdir -p dist
+          rm -f dist/*.apk
           gh release download "$TAG_NAME" \
             --repo "$GITHUB_REPOSITORY" \
             --dir dist \
