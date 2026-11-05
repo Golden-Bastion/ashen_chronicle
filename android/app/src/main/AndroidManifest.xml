@@ -17,7 +17,7 @@
             android:theme="@style/Theme.EverUnfoldingSaga">
             <meta-data
                 android:name="android.app.lib_name"
-                android:value="ashen_chronicle" />
+                android:value="ever_unfolding_saga" />
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

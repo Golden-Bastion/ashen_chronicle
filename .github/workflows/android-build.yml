@@ -254,17 +254,17 @@ jobs:
               exit 1
             fi
 
-            keystore_file="$RUNNER_TEMP/ashen-chronicle-release.keystore"
+            keystore_file="$RUNNER_TEMP/ever-unfolding-saga-release.keystore"
             printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$keystore_file"
           else
             if [[ -n "$ANDROID_KEYSTORE_BASE64" && -n "$ANDROID_KEYSTORE_PASSWORD" && -n "$ANDROID_KEY_ALIAS" && -n "$ANDROID_KEY_PASSWORD" ]]; then
-              keystore_file="$RUNNER_TEMP/ashen-chronicle-release.keystore"
+              keystore_file="$RUNNER_TEMP/ever-unfolding-saga-release.keystore"
               printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$keystore_file"
             else
-              keystore_file="$RUNNER_TEMP/ashen-chronicle-ci.keystore"
+              keystore_file="$RUNNER_TEMP/ever-unfolding-saga-ci.keystore"
               store_password="$(openssl rand -hex 24)"
               key_password="$(openssl rand -hex 24)"
-              key_alias="ashen-chronicle-ci"
+              key_alias="ever-unfolding-saga-ci"
               keytool -genkeypair -noprompt \
                 -keystore "$keystore_file" \
                 -storepass "$store_password" \
@@ -321,7 +321,7 @@ jobs:
           rustup target add "$TARGET" 2>&1 | tee -a android-build.log
           cargo build --release --target "$TARGET" 2>&1 | tee -a android-build.log
 
-          so_file="target/$TARGET/release/libashen_chronicle.so"
+          so_file="target/$TARGET/release/libever_unfolding_saga.so"
           if [[ ! -s "$so_file" ]]; then
             echo "Android native library was not produced: $so_file"
             exit 1
@@ -341,18 +341,18 @@ jobs:
 
           echo "=== existing android_main export gate ==="
           if ! "$llvm_nm" -D "$so_file" | grep -qE ' [Tt] android_main$'; then
-            echo "libashen_chronicle.so does not export android_main; GameActivity cannot start it."
+            echo "libever_unfolding_saga.so does not export android_main; GameActivity cannot start it."
             exit 1
           fi
 
           mkdir -p "android/app/src/main/jniLibs/${{ matrix.abi }}"
-          cp "$so_file" "android/app/src/main/jniLibs/${{ matrix.abi }}/libashen_chronicle.so"
+          cp "$so_file" "android/app/src/main/jniLibs/${{ matrix.abi }}/libever_unfolding_saga.so"
 
           {
             echo "=== Native library staged for Gradle ==="
-            stat "$so_file" "android/app/src/main/jniLibs/${{ matrix.abi }}/libashen_chronicle.so"
-            file "$so_file" "android/app/src/main/jniLibs/${{ matrix.abi }}/libashen_chronicle.so"
-            sha256sum "$so_file" "android/app/src/main/jniLibs/${{ matrix.abi }}/libashen_chronicle.so"
+            stat "$so_file" "android/app/src/main/jniLibs/${{ matrix.abi }}/libever_unfolding_saga.so"
+            file "$so_file" "android/app/src/main/jniLibs/${{ matrix.abi }}/libever_unfolding_saga.so"
+            sha256sum "$so_file" "android/app/src/main/jniLibs/${{ matrix.abi }}/libever_unfolding_saga.so"
           } | tee -a android-build.log
 
       - name: Stage legal notices as APK assets
@@ -433,7 +433,7 @@ jobs:
 
           {
             echo "=== Gradle native-library intermediates ==="
-            find app/build/intermediates -type f -name 'libashen_chronicle.so' -printf '%s bytes %p\n' | sort -n || true
+            find app/build/intermediates -type f -name 'libever_unfolding_saga.so' -printf '%s bytes %p\n' | sort -n || true
 
             echo "=== APK metadata ==="
             stat "$apk"
@@ -591,9 +591,3 @@ jobs:
             exit 1
           fi
 
-          for asset in \
-            "ashen_chronicle-${TAG_NAME}-android-x86_64.tar.xz" \
-            "ashen_chronicle-${TAG_NAME}-android-aarch64.tar.xz" \
-            "ashen_chronicle-${TAG_NAME}-android-armv7.tar.xz"; do
-            gh release delete-asset "$TAG_NAME" "$asset" --yes --repo "$GITHUB_REPOSITORY" || true
-          done

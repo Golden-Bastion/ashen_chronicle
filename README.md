@@ -37,7 +37,7 @@ The goal is to create a world worth exploring, a life worth shaping, and a histo
 ## Project Structure
 
 ```text
-ashen_chronicle
+ever_unfolding_saga
 ├── data
 │   ├── mods
 │   │   ├── ashen_expansion
@@ -128,7 +128,7 @@ ashen_chronicle
 
 ## Saves
 
-Save files are stored as gzip-compressed JSON using a character-specific filename such as `ashen_chronicle_save_Ash Walker.json.gz`. Existing `ashen_chronicle_save.json` saves from earlier versions remain readable.
+Save files are stored as gzip-compressed JSON using a character-specific filename such as `ever_unfolding_saga_save_Ash Walker.json.gz`. The rebranded application uses a new private data directory, so existing installation data is not discovered automatically. Export important saves from the previous installation and import them into the new one before removing the old installation.
 
 ## Building
 
@@ -149,7 +149,7 @@ cargo run -r
 or run the built release directly:
 
 ```sh
-./ashen_chronicle
+./ever_unfolding_saga
 ```
 
 ### Release targets

@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
 #[cfg(not(target_os = "android"))]
-pub const GAME_DIRECTORY_NAME: &str = "The Ashen Chronicle";
+pub const GAME_DIRECTORY_NAME: &str = "The Ever-Unfolding Saga";
 pub const SAVES_DIRECTORY_NAME: &str = "saves";
 pub const MODS_DIRECTORY_NAME: &str = "mods";
 pub const IMPORTS_DIRECTORY_NAME: &str = "imports";
@@ -232,7 +232,7 @@ mod tests {
 
     #[test]
     fn user_data_paths_are_grouped_under_one_root() {
-        let root = PathBuf::from("/tmp/ashen-chronicle");
+        let root = PathBuf::from("/tmp/ever-unfolding-saga");
         assert_eq!(root.join(SAVES_DIRECTORY_NAME), root.join("saves"));
         assert_eq!(root.join(MODS_DIRECTORY_NAME), root.join("mods"));
         assert_eq!(root.join(IMPORTS_DIRECTORY_NAME), root.join("imports"));
@@ -240,7 +240,7 @@ mod tests {
 
     #[test]
     fn bundled_mod_seeding_does_not_overwrite_user_files() {
-        let root = std::env::temp_dir().join(format!("ashen_seed_test_{}", std::process::id()));
+        let root = std::env::temp_dir().join(format!("ever_unfolding_saga_seed_test_{}", std::process::id()));
         let source = root.join("source");
         let target = root.join("target");
         fs::create_dir_all(source.join("example")).unwrap();

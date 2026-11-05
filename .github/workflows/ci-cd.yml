@@ -386,10 +386,10 @@ jobs:
           cp LICENSE-CONTENT "$package_dir/data/LICENSE-CONTENT"
 
           if [[ "$BUILD_PLATFORM" == "windows" ]]; then
-            cp "target/$TARGET/release/ashen_chronicle.exe" "$package_dir/"
+            cp "target/$TARGET/release/ever_unfolding_saga.exe" "$package_dir/"
             (cd package && 7z a -tzip -mx=9 "../$release_name.$ARCHIVE_EXT" "$release_name")
           else
-            cp "target/$TARGET/release/ashen_chronicle" "$package_dir/"
+            cp "target/$TARGET/release/ever_unfolding_saga" "$package_dir/"
             tar -cJf "$release_name.$ARCHIVE_EXT" -C package "$release_name"
           fi
 

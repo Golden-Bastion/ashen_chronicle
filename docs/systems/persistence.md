@@ -16,13 +16,13 @@ Bundled base content and base-game art remain protected package resources. Bundl
 
 ## Save format
 
-Saves use the existing JSON payload format compressed with gzip and are stored under the internal root's `saves/` directory. Character-specific filenames follow the form `ashen_chronicle_save_<character>.json.gz` after filename sanitization.
+Saves use the existing JSON payload format compressed with gzip and are stored under the internal root's `saves/` directory. Character-specific filenames follow the form `ever_unfolding_saga_save_<character>.json.gz` after filename sanitization.
 
 The save envelope records the active mod dependencies at save time. Each dependency includes its stable mod ID, display name, and version. When loading, the game checks those dependencies against the active mod snapshot captured at process startup. Missing, disabled, or version-mismatched dependencies are reported before the player continues; the player may proceed at their own responsibility.
 
 There is no automatic mod upgrade, save migration, or compatibility layer. Mod authors are responsible for maintaining compatibility between their releases and saves that depend on them.
 
-Legacy uncompressed `ashen_chronicle_save.json` payloads remain readable when encountered inside the current internal root. This compatibility does not imply migration from old, user-selected storage locations.
+Legacy uncompressed `ever_unfolding_saga_save.json` payloads remain readable when encountered inside the current internal root. The new application identity uses a new private data directory, so saves from previous installations are not discovered automatically; export and import them explicitly before removing an older installation.
 
 ## Options: save import and export
 

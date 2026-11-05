@@ -1,4 +1,4 @@
-package com.rightward.ashenchronicle;
+package com.rightward.everunfoldingsaga;
 
 import android.app.AlertDialog;
 import android.content.Intent;
@@ -33,7 +33,7 @@ import java.io.OutputStream;
 
 public class MainActivity extends GameActivity {
     private static final String TAG = "EverUnfoldingSaga";
-    private static final String GAME_DIRECTORY_NAME = "The Ashen Chronicle";
+    private static final String GAME_DIRECTORY_NAME = "The Ever-Unfolding Saga";
     private static final int REQUEST_CODE_IMPORT_DOCUMENT = 1001;
     private static final int REQUEST_CODE_EXPORT_DOCUMENT = 1002;
     private static final int ANDROID_TEXT_INPUT_TARGET_NONE = -1;
@@ -45,7 +45,7 @@ public class MainActivity extends GameActivity {
     private String pendingExportPath;
 
     static {
-        System.loadLibrary("ashen_chronicle");
+        System.loadLibrary("ever_unfolding_saga");
     }
 
     @Override

@@ -8,9 +8,9 @@ use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 
 const SAVE_FILE_VERSION: u32 = 3;
-pub const SAVE_BASE_NAME: &str = "ashen_chronicle_save";
+pub const SAVE_BASE_NAME: &str = "ever_unfolding_saga_save";
 const SAVE_EXTENSION: &str = "json.gz";
-const LEGACY_SAVE_FILE_NAME: &str = "ashen_chronicle_save.json";
+const LEGACY_SAVE_FILE_NAME: &str = "ever_unfolding_saga_save.json";
 const GENERATED_EVENT_PREFIXES: &[&str] = &["generated.event.", "generated.evolution.event."];
 
 #[derive(Debug, Serialize)]
@@ -401,7 +401,7 @@ mod tests {
             .duration_since(UNIX_EPOCH)
             .expect("system clock should be valid")
             .as_nanos();
-        let path = std::env::temp_dir().join(format!("ashen_chronicle_save_tests_{}", stamp));
+        let path = std::env::temp_dir().join(format!("ever_unfolding_saga_save_tests_{}", stamp));
         fs::create_dir_all(&path).expect("temporary directory should be created");
         path
     }
@@ -741,7 +741,7 @@ mod tests {
         let path = character_save_path(Path::new("."), "Ash Walker");
         assert_eq!(
             path,
-            PathBuf::from("./ashen_chronicle_save_Ash Walker.json.gz")
+            PathBuf::from("./ever_unfolding_saga_save_Ash Walker.json.gz")
         );
     }
 

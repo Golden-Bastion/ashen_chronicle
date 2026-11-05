@@ -25,8 +25,8 @@ A new local keystore can be created with the JDK's `keytool`, for example:
 
 ```text
 keytool -genkeypair -v \
-  -keystore ashen-chronicle-release.keystore \
-  -alias ashen-chronicle \
+  -keystore ever-unfolding-saga-release.keystore \
+  -alias ever-unfolding-saga \
   -keyalg RSA \
   -keysize 2048 \
   -validity 10000

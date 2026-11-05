@@ -229,8 +229,8 @@
 ## v0.19.1 Save compression and character-specific filenames
 
 - save files are gzip-compressed while retaining the existing JSON payload format
-- save filenames now include a sanitized character name (`ashen_chronicle_save_<character>.json.gz`)
-- legacy uncompressed `ashen_chronicle_save.json` files remain loadable
+- save filenames now include a sanitized character name (`ever_unfolding_saga_save_<character>.json.gz`)
+- legacy uncompressed `ever_unfolding_saga_save.json` files remain loadable
 - startup discovers character-specific saves and preserves the selected save path
 - added tests for compressed round-tripping, legacy loading, invalid gzip data, filename sanitization, and character-specific paths
 
