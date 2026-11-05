@@ -19,5 +19,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "The Ashen Chronicle"
+rootProject.name = "The Ever-Unfolding Saga"
 include ':app'

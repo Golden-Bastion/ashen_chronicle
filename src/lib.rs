@@ -37,7 +37,7 @@ mod ui_settings;
 
 pub fn run() {
     if let Err(error) = game_paths::GamePaths::initialize() {
-        panic!("failed to initialize The Ashen Chronicle game storage: {error}");
+        panic!("failed to initialize The Ever-Unfolding Saga game storage: {error}");
     }
     mod_manager::initialize_active_mods();
     bevy_app::run();

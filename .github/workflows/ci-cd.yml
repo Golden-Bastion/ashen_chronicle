@@ -372,7 +372,7 @@ jobs:
           ref_name="${{ needs.prep_build_matrix.outputs.ref }}"
           ref_name="${ref_name//\//-}"
 
-          release_name="ashen_chronicle-${ref_name}-${BUILD_PLATFORM}-${ARCH}"
+          release_name="the-ever-unfolding-saga-${ref_name}-${BUILD_PLATFORM}-${ARCH}"
           package_dir="package/$release_name"
           mkdir -p "$package_dir"
 
@@ -398,7 +398,7 @@ jobs:
       - name: Upload release archive
         uses: actions/upload-artifact@v7.0.1
         with:
-          path: ashen_chronicle-*-${{ matrix.platform }}-${{ matrix.arch }}.${{ matrix.archive_ext }}
+          path: the-ever-unfolding-saga-*-${{ matrix.platform }}-${{ matrix.arch }}.${{ matrix.archive_ext }}
           if-no-files-found: error
           retention-days: 7
           archive: false
@@ -453,7 +453,7 @@ jobs:
       - name: Download release archives
         uses: actions/download-artifact@v8.0.1
         with:
-          pattern: ashen_chronicle-*
+          pattern: the-ever-unfolding-saga-*
           path: dist
           merge-multiple: true
           skip-decompress: true
@@ -470,11 +470,11 @@ jobs:
           preserve_order: true
           overwrite_files: true
           files: |
-            dist/ashen_chronicle-${{ needs.prep_build_matrix.outputs.ref }}-linux-x86_64.tar.xz
-            dist/ashen_chronicle-${{ needs.prep_build_matrix.outputs.ref }}-linux-aarch64.tar.xz
-            dist/ashen_chronicle-${{ needs.prep_build_matrix.outputs.ref }}-macos-aarch64.tar.xz
-            dist/ashen_chronicle-${{ needs.prep_build_matrix.outputs.ref }}-windows-x86_64.zip
-            dist/ashen_chronicle-${{ needs.prep_build_matrix.outputs.ref }}-windows-aarch64.zip
+            dist/the-ever-unfolding-saga-${{ needs.prep_build_matrix.outputs.ref }}-linux-x86_64.tar.xz
+            dist/the-ever-unfolding-saga-${{ needs.prep_build_matrix.outputs.ref }}-linux-aarch64.tar.xz
+            dist/the-ever-unfolding-saga-${{ needs.prep_build_matrix.outputs.ref }}-macos-aarch64.tar.xz
+            dist/the-ever-unfolding-saga-${{ needs.prep_build_matrix.outputs.ref }}-windows-x86_64.zip
+            dist/the-ever-unfolding-saga-${{ needs.prep_build_matrix.outputs.ref }}-windows-aarch64.zip
 
   sync_lock:
     name: Commit Cargo.lock updates

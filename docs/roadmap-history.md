@@ -1,4 +1,4 @@
-# The Ashen Chronicle
+# The Ever-Unfolding Saga
 
 ## Roadmap
 
@@ -497,7 +497,7 @@ src/
 - Preserved existing combat rules, history recording, rewards, quest updates, and threat cleanup behavior.
 
 ## v0.45.0: World presentation
-- add Dedicated World / Ashen Chronicle screen
+- add Dedicated World / The Ever-Unfolding Saga screen
 - add dedicated History screen
 - preserve World screen parent navigation
 - give Talk flow a dedicated screen state

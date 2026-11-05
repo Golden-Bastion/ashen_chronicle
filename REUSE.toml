@@ -1,5 +1,5 @@
 version = 1
-SPDX-PackageName = "ashen_chronicle"
+SPDX-PackageName = "The Ever-Unfolding Saga"
 SPDX-PackageDownloadLocation = "https://github.com/right-ward/ashen_chronicle"
 
 # --- Source Code and developer documentation: BUSL 1.1 ---------------------
@@ -22,7 +22,7 @@ path = [
 precedence = "aggregate"
 SPDX-FileCopyrightText = [
   "2026 right-ward",
-  "Ashen Chronicle contributors",
+  "The Ever-Unfolding Saga contributors",
 ]
 SPDX-License-Identifier = "BUSL-1.1"
 
@@ -34,6 +34,6 @@ path = ["data/**"]
 precedence = "aggregate"
 SPDX-FileCopyrightText = [
   "2026 right-ward",
-  "Ashen Chronicle contributors",
+  "The Ever-Unfolding Saga contributors",
 ]
 SPDX-License-Identifier = "CC-BY-NC-ND-4.0"

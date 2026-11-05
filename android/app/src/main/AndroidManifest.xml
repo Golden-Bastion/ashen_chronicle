@@ -2,9 +2,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <application
-        android:label="The Ashen Chronicle"
+        android:label="The Ever-Unfolding Saga"
         android:icon="@drawable/icon"
-        android:theme="@style/Theme.AshenChronicle"
+        android:theme="@style/Theme.EverUnfoldingSaga"
         android:resizeableActivity="true"
         android:enableOnBackInvokedCallback="true"
         android:appCategory="game">
@@ -14,7 +14,7 @@
             android:screenOrientation="sensorLandscape"
             android:windowSoftInputMode="adjustResize"
             android:configChanges="layoutDirection|locale|orientation|keyboardHidden|screenSize|smallestScreenSize|density|keyboard|navigation|screenLayout|uiMode"
-            android:theme="@style/Theme.AshenChronicle">
+            android:theme="@style/Theme.EverUnfoldingSaga">
             <meta-data
                 android:name="android.app.lib_name"
                 android:value="ashen_chronicle" />

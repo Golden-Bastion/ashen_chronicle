@@ -32,7 +32,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 
 public class MainActivity extends GameActivity {
-    private static final String TAG = "AshenChronicle";
+    private static final String TAG = "EverUnfoldingSaga";
     private static final String GAME_DIRECTORY_NAME = "The Ashen Chronicle";
     private static final int REQUEST_CODE_IMPORT_DOCUMENT = 1001;
     private static final int REQUEST_CODE_EXPORT_DOCUMENT = 1002;

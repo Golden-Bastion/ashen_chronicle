@@ -1,8 +1,8 @@
-# Contributing to Ashen Chronicle
+# Contributing to The Ever-Unfolding Saga
 
 Copyright 2026 right-ward
 
-By submitting a contribution to Ashen Chronicle, you agree that the
+By submitting a contribution to The Ever-Unfolding Saga, you agree that the
 contribution may be used, modified, combined, reproduced, and distributed as
 part of the project under the licenses applicable to that contribution and
 under future versions of those licenses where the project expressly permits
@@ -24,7 +24,7 @@ knowledge:
    copyright, trademark, patent, or other intellectual-property rights.
 
 Do not submit material copied from another project unless its license and
-the intended use in Ashen Chronicle have been verified.
+the intended use in The Ever-Unfolding Saga have been verified.
 
 ## Copyright
 
@@ -33,7 +33,7 @@ Contributors retain copyright in their contributions.
 By contributing, you grant right-ward a perpetual, worldwide, non-exclusive,
 royalty-free, irrevocable copyright license to reproduce, modify, prepare
 derivative works from, publicly display, publicly perform, sublicense, and
-distribute your contribution as part of Ashen Chronicle and its derivatives.
+distribute your contribution as part of The Ever-Unfolding Saga and its derivatives.
 
 This grant is intended to permit the project to continue distributing and
 maintaining contributions even if a contributor later stops participating.

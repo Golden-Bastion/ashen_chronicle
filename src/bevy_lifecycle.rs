@@ -700,7 +700,7 @@ fn should_render_lifecycle(current_screen: Option<ScreenId>) -> bool {
 }
 
 fn render(commands: &mut Commands, lifecycle: &LifecycleState) {
-    let root = bevy_presentation::spawn_screen(commands, "THE ASHEN CHRONICLE");
+    let root = bevy_presentation::spawn_screen(commands, "THE EVER-UNFOLDING SAGA");
     let panel = bevy_presentation::spawn_panel(commands, root);
 
     match lifecycle.phase {

@@ -1,4 +1,4 @@
-# The Ashen Chronicle — Architecture
+# The Ever-Unfolding Saga — Architecture
 
 ## Purpose
 

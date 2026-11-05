@@ -430,7 +430,7 @@ fn import_save(options: &mut OptionsState, _lifecycle: &mut LifecycleState) {
     {
         let Some(source) = rfd::FileDialog::new()
             .set_title("Import a save")
-            .add_filter("Ashen Chronicle saves", &["gz", "json", "save"])
+            .add_filter("The Ever-Unfolding Saga saves", &["gz", "json", "save"])
             .pick_file()
         else {
             options.message = Some("Save import cancelled.".to_string());

@@ -1,6 +1,6 @@
-# The Ashen Chronicle
+# The Ever-Unfolding Saga
 
-A dark fantasy RPG built in Rust, focused on exploration, consequence, character death, and a world that remembers what happened. The shipped game uses a Bevy graphical frontend while keeping gameplay and presentation models independent of the engine.
+A character-focused dark-fantasy RPG built in Rust, centered on exploration, self-directed lives, and adventures in a living world. The shipped game uses a Bevy graphical frontend while keeping gameplay and presentation models independent of the engine.
 
 The game is inspired by the atmosphere and themes of dark fantasy: dangerous roads, forgotten places, strange characters, difficult choices, and a world that does not simply reset when a character dies.
 
@@ -23,7 +23,7 @@ The game is inspired by the atmosphere and themes of dark fantasy: dangerous roa
 
 ## Core Concept
 
-The Ashen Chronicle is a dark-fantasy open-world RPG about exploration, self-directed lives, and lasting consequences.
+The Ever-Unfolding Saga is a dark-fantasy open-world RPG about exploration, self-directed lives, and adventures shaped by each character.
 
 Its procedurally generated world extends beyond the known frontier, offering new places, people, dangers, resources, and opportunities to discover. Exploration should reward curiosity without requiring every location to be handcrafted.
 
@@ -202,4 +202,4 @@ Development releases remain below `1.0.0` while the core systems and content are
 
 ---
 
-The world remembers what you leave behind.
+A world to explore, a life to shape, and adventures yet to unfold.

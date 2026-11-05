@@ -9,8 +9,8 @@ Corporation Ab.
 Parameters
 
 Licensor:             right-ward
-Licensed Work:        The Ashen Chronicle (the "Game"), including its source code
-                       The Licensed Work is (c) 2026 The Ashen Chronicle
+Licensed Work:        The Ever-Unfolding Saga (the "Game"), including its source code
+                       The Licensed Work is (c) 2026 The Ever-Unfolding Saga
 
 Additional Use Grant: You may use, copy, and modify the Licensed Work for
                        non-commercial purposes only. You may not use the
