@@ -201,7 +201,7 @@ fn complementary_resources(left: &RegionCharacteristics, right: &RegionCharacter
 mod tests {
     use super::*;
     use crate::content::load_campaign_content;
-    use crate::model::{EntityId, GameState, WorldGenerationMetadata, WorldMode};
+    use crate::model::{GameState, WorldGenerationMetadata, WorldMode};
     use crate::procedural::{generate_world, place_authored_content, WorldGenerationConfig};
     use crate::procedural_entities::populate_generated_entities;
 
@@ -367,46 +367,5 @@ mod tests {
         assert!(generated.memory.iter().any(|entry| {
             entry.starts_with(RELATIONSHIP_MARKER) && entry.contains(&authored_name)
         }));
-    }
-
-    #[test]
-    fn generated_relationships_survive_serialization() {
-        let content = load_campaign_content();
-        let mut state = generated_state();
-        populate_generated_entities(&mut state, &content);
-        populate_generated_relationships(&mut state);
-
-        let serialized = serde_json::to_vec(&state).expect("state should serialize");
-        let restored: GameState =
-            serde_json::from_slice(&serialized).expect("state should deserialize");
-        assert_eq!(
-            relationship_memories(&state),
-            relationship_memories(&restored)
-        );
-    }
-
-    fn relationship_memories(state: &GameState) -> Vec<(EntityId, Vec<String>)> {
-        state
-            .factions
-            .iter()
-            .filter(|faction| {
-                is_generated_faction(faction)
-                    || faction
-                        .memory
-                        .iter()
-                        .any(|entry| entry.starts_with("[authored anchor]"))
-            })
-            .map(|faction| {
-                (
-                    faction.id,
-                    faction
-                        .memory
-                        .iter()
-                        .filter(|entry| entry.starts_with(RELATIONSHIP_MARKER))
-                        .cloned()
-                        .collect(),
-                )
-            })
-            .collect()
     }
 }

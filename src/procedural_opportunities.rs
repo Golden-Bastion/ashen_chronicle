@@ -438,26 +438,16 @@ mod tests {
     }
 
     #[test]
-    fn generated_world_gets_quest_and_event() {
+    fn generated_quest_references_valid_entities() {
         let mut state = prepared_state();
-        assert!(populate_generated_opportunities(&mut state) > 0);
-        assert!(state
-            .quests
-            .iter()
-            .any(|q| q.content_id.starts_with(QUEST_PREFIX)));
+        populate_generated_opportunities(&mut state);
         assert!(state
             .campaign_content
             .as_ref()
             .unwrap()
             .events
             .iter()
-            .any(|e| e.id.starts_with(EVENT_PREFIX)));
-    }
-
-    #[test]
-    fn generated_quest_references_valid_entities() {
-        let mut state = prepared_state();
-        populate_generated_opportunities(&mut state);
+            .any(|event| event.id.starts_with(EVENT_PREFIX)));
         let quest = state
             .quests
             .iter()

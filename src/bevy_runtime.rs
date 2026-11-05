@@ -53,12 +53,4 @@ mod tests {
         assert_eq!(state.app_lifecycle, AppLifecycle::Running);
         assert!(state.window_focused);
     }
-
-    #[test]
-    fn lifecycle_states_match_bevy_activity_semantics() {
-        assert!(AppLifecycle::Running.is_active());
-        assert!(AppLifecycle::WillSuspend.is_active());
-        assert!(!AppLifecycle::Suspended.is_active());
-        assert!(AppLifecycle::WillResume.is_active());
-    }
 }

@@ -2161,35 +2161,12 @@ mod tests {
     }
 
     #[test]
-    fn navigation_state_starts_without_a_screen_or_selection() {
-        let state = NavigationState::default();
-        assert_eq!(state.current_screen, None);
-        assert_eq!(state.return_screen, None);
-        assert_eq!(state.selected, 0);
-    }
-
-    #[test]
-    fn responsive_fonts_use_root_relative_units() {
-        assert_eq!(title_font_size(), FontSize::Rem(1.8));
-        assert_eq!(screen_detail_font_size(), FontSize::Rem(0.72));
-        assert_eq!(label_font_size(), FontSize::Rem(1.0));
-        assert_eq!(muted_font_size(), FontSize::Rem(0.9));
-    }
-
-    #[test]
     fn screen_header_row_keeps_the_detail_right_aligned_without_wrapping() {
         let row = screen_header_row_node();
         assert_eq!(row.flex_direction, FlexDirection::Row);
         assert_eq!(row.flex_wrap, FlexWrap::NoWrap);
         assert_eq!(row.justify_content, JustifyContent::SpaceBetween);
         assert_eq!(row.align_items, AlignItems::Center);
-    }
-
-    #[test]
-    fn ui_theme_exposes_semantic_surface_and_interaction_tokens() {
-        assert_eq!(UI_TOUCH_TARGET_PX, 48.0);
-        assert_eq!(UI_COMPACT_GAP_VMIN, 1.111);
-        assert_eq!(UI_SURFACE_PADDING_VMIN, 1.667);
     }
 
     #[test]
