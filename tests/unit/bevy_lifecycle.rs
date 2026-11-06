@@ -152,6 +152,79 @@ fn android_text_snapshots_replace_the_buffer_and_reset_the_cursor() {
 fn default_creation_values_match_legacy_flow() {
     let state = LifecycleState::default();
     assert_eq!(state.world_name, "The Ashen Crown");
+    assert_eq!(state.creation_tab, 0);
     assert!(state.character_name.is_empty());
     assert_eq!(state.character_title, "Ash Walker");
+}
+
+
+#[test]
+fn creation_tabs_have_independent_selection_ranges() {
+    assert_eq!(creation_selection_bounds(0), (0, 0));
+    assert_eq!(creation_selection_bounds(1), (1, 2));
+    assert_eq!(creation_selection_bounds(2), (3, 3));
+    assert_eq!(creation_tab_for_field(0), 0);
+    assert_eq!(creation_tab_for_field(1), 1);
+    assert_eq!(creation_tab_for_field(2), 1);
+}
+
+#[test]
+fn selecting_a_creation_tab_updates_the_active_selection() {
+    let mut lifecycle = LifecycleState {
+        phase: LifecyclePhase::CreateCharacter,
+        selected: 2,
+        dirty: false,
+        ..LifecycleState::default()
+    };
+    let mut navigation = NavigationState {
+        current_screen: Some(ScreenId::Lifecycle),
+        selected: 2,
+        ..NavigationState::default()
+    };
+
+    select_creation_tab(&mut lifecycle, &mut navigation, 2);
+
+    assert_eq!(lifecycle.creation_tab, 2);
+    assert_eq!(lifecycle.selected, 3);
+    assert_eq!(navigation.selected, 3);
+    assert!(lifecycle.dirty);
+}
+
+#[test]
+fn creation_confirmation_advances_through_world_character_and_start_tabs() {
+    let mut lifecycle = LifecycleState {
+        phase: LifecyclePhase::CreateCharacter,
+        ..LifecycleState::default()
+    };
+    let mut navigation = NavigationState {
+        current_screen: Some(ScreenId::Lifecycle),
+        ..NavigationState::default()
+    };
+
+    activate_selection(&mut lifecycle, &mut navigation);
+    assert_eq!(lifecycle.creation_tab, 1);
+    assert_eq!(lifecycle.selected, 1);
+
+    activate_selection(&mut lifecycle, &mut navigation);
+    assert_eq!(lifecycle.creation_tab, 1);
+    assert_eq!(lifecycle.selected, 2);
+
+    activate_selection(&mut lifecycle, &mut navigation);
+    assert_eq!(lifecycle.creation_tab, 2);
+    assert_eq!(lifecycle.selected, 3);
+}
+
+#[test]
+fn empty_creation_values_keep_the_existing_effective_defaults() {
+    let mut lifecycle = LifecycleState::default();
+    assert_eq!(lifecycle.effective_world_name(), "The Ashen Crown");
+    assert_eq!(lifecycle.effective_character_name(), "Wanderer");
+    assert_eq!(lifecycle.effective_character_title(), "Ash Walker");
+
+    lifecycle.world_name = "  My World  ".to_string();
+    lifecycle.character_name = "  My Character  ".to_string();
+    lifecycle.character_title = "  My Title  ".to_string();
+    assert_eq!(lifecycle.effective_world_name(), "My World");
+    assert_eq!(lifecycle.effective_character_name(), "My Character");
+    assert_eq!(lifecycle.effective_character_title(), "My Title");
 }
