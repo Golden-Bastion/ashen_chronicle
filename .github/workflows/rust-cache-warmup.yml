@@ -1,0 +1,54 @@
+name: Rust Cache Warmup
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '**.rs'
+      - '.github/workflows/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'data/**'
+
+permissions:
+  contents: read
+
+jobs:
+  clippy:
+    name: Warm Clippy Cache
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      - name: Set up Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1.17.0
+        with:
+          toolchain: stable
+          cache: true
+          cache-shared-key: clippy
+          cache-save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Run Clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+  test:
+    name: Warm Test Cache
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      - name: Set up Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1.17.0
+        with:
+          toolchain: stable
+          cache: true
+          cache-shared-key: test
+          cache-save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Run Tests
+        run: cargo test --lib --features dev --no-fail-fast
