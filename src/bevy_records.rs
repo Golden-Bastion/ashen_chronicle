@@ -251,13 +251,17 @@ fn selection_count(records_state: &RecordScreenState, lifecycle: &LifecycleState
     };
     match records_state.screen {
         RecordScreen::Character => match records_state.character_tab {
-            CharacterTab::General | CharacterTab::Reputation => 0,
-            CharacterTab::Inventory => records::build_inventory_view(&session.state).items.len(),
-            CharacterTab::Quests => records::build_quest_log_view(&session.state).quests.len(),
+            CharacterTab::General | CharacterTab::Reputation => 1,
+            CharacterTab::Inventory => {
+                records::build_inventory_view(&session.state).items.len() + 1
+            }
+            CharacterTab::Quests => {
+                records::build_quest_log_view(&session.state).quests.len() + 1
+            }
             CharacterTab::Journal => {
                 let character_view = character::build_character_sheet_view(&session.state);
                 let history_view = history_screen::build_view(&session.state);
-                journal_chronicle_entries(&history_view, &character_view).len() + 1
+                journal_chronicle_entries(&history_view, &character_view).len() + 2
             }
         },
         RecordScreen::InventoryDetail
@@ -323,7 +327,9 @@ fn activate(
 
     match records_state.screen {
         RecordScreen::Character => match records_state.character_tab {
-            CharacterTab::General | CharacterTab::Reputation => {}
+            CharacterTab::General | CharacterTab::Reputation => {
+                close_to_gameplay(navigation);
+            }
             CharacterTab::Inventory => {
                 let view = records::build_inventory_view(&session.state);
                 if records_state.selected < view.items.len() {
@@ -331,6 +337,8 @@ fn activate(
                     records_state.screen = RecordScreen::InventoryDetail;
                     records_state.selected = 0;
                     records_state.dirty = true;
+                } else {
+                    close_to_gameplay(navigation);
                 }
             }
             CharacterTab::Quests => {
@@ -340,6 +348,8 @@ fn activate(
                     records_state.screen = RecordScreen::QuestDetail;
                     records_state.selected = 0;
                     records_state.dirty = true;
+                } else {
+                    close_to_gameplay(navigation);
                 }
             }
             CharacterTab::Journal => {
@@ -357,6 +367,8 @@ fn activate(
                     records_state.message = None;
                     records_state.journal_draft.clear();
                     records_state.dirty = true;
+                } else {
+                    close_to_gameplay(navigation);
                 }
             }
         },
@@ -566,6 +578,17 @@ fn render_character_hub(
         }
     }
 
+    let back_index = match tab {
+        CharacterTab::General | CharacterTab::Reputation => 0,
+        CharacterTab::Inventory => inventory.items.len(),
+        CharacterTab::Quests => quests.quests.len(),
+        CharacterTab::Journal => journal_chronicle_entries(history, character).len() + 1,
+    };
+    let footer = bevy_presentation::spawn_option_footer(commands, panel);
+    let back = bevy_presentation::spawn_action_button(commands, footer, back_index, "back", "Back");
+    if selected == back_index {
+        commands.entity(back).insert(bevy_presentation::UiSelected);
+    }
 }
 
 fn render_character_general_tab(
