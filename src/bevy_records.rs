@@ -56,6 +56,29 @@ impl CharacterTab {
     }
 }
 
+fn character_tab_back_index(
+    tab: CharacterTab,
+    inventory_count: usize,
+    quest_count: usize,
+    chronicle_count: usize,
+) -> usize {
+    match tab {
+        CharacterTab::General | CharacterTab::Reputation => 0,
+        CharacterTab::Inventory => inventory_count,
+        CharacterTab::Quests => quest_count,
+        CharacterTab::Journal => chronicle_count + 1,
+    }
+}
+
+fn character_tab_selection_count(
+    tab: CharacterTab,
+    inventory_count: usize,
+    quest_count: usize,
+    chronicle_count: usize,
+) -> usize {
+    character_tab_back_index(tab, inventory_count, quest_count, chronicle_count) + 1
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum RecordScreen {
     Character,
@@ -250,19 +273,19 @@ fn selection_count(records_state: &RecordScreenState, lifecycle: &LifecycleState
         return 1;
     };
     match records_state.screen {
-        RecordScreen::Character => match records_state.character_tab {
-            CharacterTab::General | CharacterTab::Reputation => 1,
-            CharacterTab::Inventory => {
-                records::build_inventory_view(&session.state).items.len() + 1
-            }
-            CharacterTab::Quests => {
-                records::build_quest_log_view(&session.state).quests.len() + 1
-            }
-            CharacterTab::Journal => {
-                let character_view = character::build_character_sheet_view(&session.state);
-                let history_view = history_screen::build_view(&session.state);
-                journal_chronicle_entries(&history_view, &character_view).len() + 2
-            }
+        RecordScreen::Character => {
+            let inventory_count = records::build_inventory_view(&session.state).items.len();
+            let quest_count = records::build_quest_log_view(&session.state).quests.len();
+            let character_view = character::build_character_sheet_view(&session.state);
+            let history_view = history_screen::build_view(&session.state);
+            let chronicle_count =
+                journal_chronicle_entries(&history_view, &character_view).len();
+            character_tab_selection_count(
+                records_state.character_tab,
+                inventory_count,
+                quest_count,
+                chronicle_count,
+            )
         },
         RecordScreen::InventoryDetail
         | RecordScreen::QuestDetail
@@ -578,12 +601,12 @@ fn render_character_hub(
         }
     }
 
-    let back_index = match tab {
-        CharacterTab::General | CharacterTab::Reputation => 0,
-        CharacterTab::Inventory => inventory.items.len(),
-        CharacterTab::Quests => quests.quests.len(),
-        CharacterTab::Journal => journal_chronicle_entries(history, character).len() + 1,
-    };
+    let back_index = character_tab_back_index(
+        tab,
+        inventory.items.len(),
+        quests.quests.len(),
+        journal_chronicle_entries(history, character).len(),
+    );
     let footer = bevy_presentation::spawn_option_footer(commands, panel);
     let back = bevy_presentation::spawn_action_button(commands, footer, back_index, "back", "Back");
     if selected == back_index {
