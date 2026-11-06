@@ -219,27 +219,24 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          : > android-build.log
-          {
-            echo "=== Android packaging CI diagnostics ==="
-            echo "runner_os=$RUNNER_OS"
-            echo "runner_arch=$RUNNER_ARCH"
-            echo "java:"
-            java -version 2>&1
-            echo "gradle:"
-            gradle --version
-            echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
-            echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/28.2.13676358"
-            echo "build-tools:"
-            "$ANDROID_SDK_ROOT/build-tools/36.0.0/aapt2" version || true
-            "$ANDROID_SDK_ROOT/build-tools/36.0.0/zipalign" 2>&1 | sed -n "1,2p" || true
-            "$ANDROID_SDK_ROOT/build-tools/36.0.0/apksigner" version || true
-            echo "AGP:"
-            grep -n 'android-application' android/gradle/libs.versions.toml
-            echo "Android packaging configuration:"
-            grep -n -A6 -B2 'packaging' android/app/build.gradle || true
-            grep -n -A12 -B2 'androidComponents' android/app/build.gradle || true
-          } 2>&1 | tee -a android-build.log
+          echo "=== Android packaging CI diagnostics ==="
+          echo "runner_os=$RUNNER_OS"
+          echo "runner_arch=$RUNNER_ARCH"
+          echo "java:"
+          java -version 2>&1
+          echo "gradle:"
+          gradle --version
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
+          echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/28.2.13676358"
+          echo "build-tools:"
+          "$ANDROID_SDK_ROOT/build-tools/36.0.0/aapt2" version || true
+          "$ANDROID_SDK_ROOT/build-tools/36.0.0/zipalign" 2>&1 | sed -n "1,2p" || true
+          "$ANDROID_SDK_ROOT/build-tools/36.0.0/apksigner" version || true
+          echo "AGP:"
+          grep -n 'android-application' android/gradle/libs.versions.toml
+          echo "Android packaging configuration:"
+          grep -n -A6 -B2 'packaging' android/app/build.gradle || true
+          grep -n -A12 -B2 'androidComponents' android/app/build.gradle || true
 
       - name: Prepare signing keystore
         shell: bash
@@ -324,8 +321,8 @@ jobs:
           target_env="${target_env^^}"
           export "CARGO_TARGET_${target_env}_LINKER=$linker"
 
-          rustup target add "$TARGET" 2>&1 | tee -a android-build.log
-          cargo build --release --target "$TARGET" 2>&1 | tee -a android-build.log
+          rustup target add "$TARGET"
+          cargo build --release --target "$TARGET"
 
           so_file="target/$TARGET/release/libever_unfolding_saga.so"
           if [[ ! -s "$so_file" ]]; then
@@ -354,12 +351,10 @@ jobs:
           mkdir -p "android/app/src/main/jniLibs/${{ matrix.abi }}"
           cp "$so_file" "android/app/src/main/jniLibs/${{ matrix.abi }}/libever_unfolding_saga.so"
 
-          {
-            echo "=== Native library staged for Gradle ==="
-            stat "$so_file" "android/app/src/main/jniLibs/${{ matrix.abi }}/libever_unfolding_saga.so"
-            file "$so_file" "android/app/src/main/jniLibs/${{ matrix.abi }}/libever_unfolding_saga.so"
-            sha256sum "$so_file" "android/app/src/main/jniLibs/${{ matrix.abi }}/libever_unfolding_saga.so"
-          } | tee -a android-build.log
+          echo "=== Native library staged for Gradle ==="
+          stat "$so_file" "android/app/src/main/jniLibs/${{ matrix.abi }}/libever_unfolding_saga.so"
+          file "$so_file" "android/app/src/main/jniLibs/${{ matrix.abi }}/libever_unfolding_saga.so"
+          sha256sum "$so_file" "android/app/src/main/jniLibs/${{ matrix.abi }}/libever_unfolding_saga.so"
 
       - name: Stage legal notices as APK assets
         shell: bash
@@ -413,7 +408,7 @@ jobs:
           }
           EOF
 
-          gradle --no-daemon --stacktrace --info --warning-mode all --console=plain             --init-script "$RUNNER_TEMP/android-packaging-diagnostics.init.gradle"             :app:assembleRelease 2>&1 | tee ../android-build.log
+          gradle --no-daemon --stacktrace --info --warning-mode all --console=plain             --init-script "$RUNNER_TEMP/android-packaging-diagnostics.init.gradle"             :app:assembleRelease
 
           apk="app/build/outputs/apk/release/app-release.apk"
           if [[ ! -f "$apk" ]]; then
@@ -423,10 +418,10 @@ jobs:
 
           safe_ref="${{ needs.prepare.outputs.artifact_ref }}"
           safe_ref="${safe_ref//\//-}"
-          apk_name="the-ever-unfolding-saga-${safe_ref}-android-${{ matrix.arch }}.apk"
+          apk_name="teus-${safe_ref}-android-${{ matrix.arch }}.apk"
           cp "$apk" "../$apk_name"
           echo "APK_NAME=$apk_name" >> "$GITHUB_ENV"
-          echo "Created $apk_name" | tee -a ../android-build.log
+          echo "Created $apk_name"
 
       - name: Inspect Gradle APK packaging output
         working-directory: android
@@ -470,7 +465,7 @@ jobs:
 
             echo "=== Largest APK entries ==="
             unzip -l "$apk" | awk 'NR > 3 {size=$1; name=$4; if (size ~ /^[0-9]+$/) print size, name}' | sort -nr | sed -n "1,20p"
-          } 2>&1 | tee -a ../android-build.log
+          }
 
       - name: Verify native library compression
         shell: bash
@@ -529,34 +524,6 @@ jobs:
           archive: false
           overwrite: true
 
-      - name: Archive Android build log
-        if: always()
-        shell: bash
-        run: |
-          set +e
-          {
-            printf '%s\n' \
-              "platform=android" \
-              "arch=${{ matrix.arch }}" \
-              "abi=${{ matrix.abi }}" \
-              "target=${{ matrix.target }}" \
-              "source_ref=${{ needs.prepare.outputs.source_ref }}" \
-              "artifact_ref=${{ needs.prepare.outputs.artifact_ref }}" \
-              "version=${{ needs.prepare.outputs.version }}"
-            cat android-build.log 2>/dev/null || true
-          } > android-build-${{ matrix.arch }}.txt
-          tar caf android-build-log-${{ matrix.arch }}.tar.xz android-build-${{ matrix.arch }}.txt
-
-      - name: Upload Android build log
-        if: always()
-        uses: actions/upload-artifact@v7.0.1
-        with:
-          path: android-build-log-${{ matrix.arch }}.tar.xz
-          if-no-files-found: error
-          retention-days: 7
-          archive: false
-          overwrite: true
-
   publish:
     name: Publish Android APKs
     if: |
@@ -572,7 +539,7 @@ jobs:
       - name: Download Android APK artifacts
         uses: actions/download-artifact@v8.0.1
         with:
-          pattern: the-ever-unfolding-saga-*-android-*.apk
+          pattern: teus-*-android-*.apk
           path: dist
           merge-multiple: true
 
@@ -648,14 +615,14 @@ jobs:
           set -euo pipefail
 
           expected_assets=(
-            "the-ever-unfolding-saga-$TAG_NAME-linux-x86_64.tar.xz"
-            "the-ever-unfolding-saga-$TAG_NAME-linux-aarch64.tar.xz"
-            "the-ever-unfolding-saga-$TAG_NAME-macos-aarch64.tar.xz"
-            "the-ever-unfolding-saga-$TAG_NAME-windows-x86_64.zip"
-            "the-ever-unfolding-saga-$TAG_NAME-windows-aarch64.zip"
-            "the-ever-unfolding-saga-$TAG_NAME-android-x86_64.apk"
-            "the-ever-unfolding-saga-$TAG_NAME-android-aarch64.apk"
-            "the-ever-unfolding-saga-$TAG_NAME-android-armv7.apk"
+            "teus-$TAG_NAME-linux-x86_64.tar.xz"
+            "teus-$TAG_NAME-linux-aarch64.tar.xz"
+            "teus-$TAG_NAME-macos-aarch64.tar.xz"
+            "teus-$TAG_NAME-windows-x86_64.zip"
+            "teus-$TAG_NAME-windows-aarch64.zip"
+            "teus-$TAG_NAME-android-x86_64.apk"
+            "teus-$TAG_NAME-android-aarch64.apk"
+            "teus-$TAG_NAME-android-armv7.apk"
           )
 
           missing=()
@@ -688,7 +655,7 @@ jobs:
           gh release download "$TAG_NAME" \
             --repo "$GITHUB_REPOSITORY" \
             --dir dist \
-            --pattern 'the-ever-unfolding-saga-*'
+            --pattern 'teus-*'
 
           for asset in "${expected_assets[@]}"; do
             if [[ ! -s "dist/$asset" ]]; then
@@ -709,7 +676,7 @@ jobs:
           mkdir -p "$build_root"
 
           for channel in linux-x86_64 linux-aarch64 macos-aarch64; do
-            archive="dist/the-ever-unfolding-saga-$TAG_NAME-$channel.tar.xz"
+            archive="dist/teus-$TAG_NAME-$channel.tar.xz"
             destination="$build_root/$channel"
             mkdir -p "$destination"
             tar -xJf "$archive" --strip-components=1 -C "$destination"
@@ -722,8 +689,8 @@ jobs:
           done
 
           for channel in windows-x86_64 windows-aarch64; do
-            archive="dist/the-ever-unfolding-saga-$TAG_NAME-$channel.zip"
-            archive_root="the-ever-unfolding-saga-$TAG_NAME-$channel"
+            archive="dist/teus-$TAG_NAME-$channel.zip"
+            archive_root="teus-$TAG_NAME-$channel"
             extract_dir="$RUNNER_TEMP/itch-extract-$channel"
             destination="$build_root/$channel"
             mkdir -p "$extract_dir" "$destination"
@@ -757,7 +724,7 @@ jobs:
           done
 
           for arch in x86_64 aarch64 armv7; do
-            apk="dist/the-ever-unfolding-saga-$TAG_NAME-android-$arch.apk"
+            apk="dist/teus-$TAG_NAME-android-$arch.apk"
             channel="android-$arch"
             echo "Publishing $channel"
             butler push "$apk" "$ITCHIO_TARGET:$channel" --userversion "$TAG_NAME"
