@@ -665,6 +665,122 @@ fn render_inventory_tab(
     }
 }
 
+fn render_inventory_detail(commands: &mut Commands, view: &Option<InventoryDetailView>) {
+    let panel = render_header(commands, "INVENTORY | ITEM", "Inspect the selected item.");
+    let Some(view) = view else {
+        bevy_presentation::spawn_muted_label(commands, panel, "That item is no longer available.");
+        let button = bevy_presentation::spawn_action_button(commands, panel, 0, "back", "Back");
+        commands.entity(button).insert(bevy_presentation::UiSelected);
+        return;
+    };
+    bevy_presentation::spawn_label(commands, panel, &view.item.name);
+    bevy_presentation::spawn_muted_label(
+        commands,
+        panel,
+        format!("Item {} of {}", view.position, view.total),
+    );
+    bevy_presentation::spawn_muted_label(
+        commands,
+        panel,
+        if view.item.description.trim().is_empty() {
+            "No description is available.".to_string()
+        } else {
+            view.item.description.clone()
+        },
+    );
+    if view.art.is_some() {
+        bevy_presentation::spawn_muted_label(
+            commands,
+            panel,
+            "Item art is available in the campaign content.",
+        );
+    }
+    let button =
+        bevy_presentation::spawn_action_button(commands, panel, 0, "back", "Back to inventory");
+    commands.entity(button).insert(bevy_presentation::UiSelected);
+}
+
+fn render_quests_tab(
+    commands: &mut Commands,
+    parent: Entity,
+    view: &QuestLogView,
+    selected: usize,
+) {
+    if view.quests.is_empty() {
+        bevy_presentation::spawn_muted_label(commands, parent, "No quests have been recorded yet.");
+        return;
+    }
+    for (index, quest) in view.quests.iter().enumerate() {
+        let button = bevy_presentation::spawn_action_button(
+            commands,
+            parent,
+            index,
+            "quests",
+            format!("[{}] {}", quest.status, quest.title),
+        );
+        if selected == index {
+            commands.entity(button).insert(bevy_presentation::UiSelected);
+        }
+    }
+}
+
+fn render_journal_tab(
+    commands: &mut Commands,
+    parent: Entity,
+    character: &CharacterSheetView,
+    history: &HistoryView,
+    selected: usize,
+) {
+    let entries = journal_chronicle_entries(history, character);
+    bevy_presentation::spawn_label(commands, parent, "CHRONICLE");
+    bevy_presentation::spawn_muted_label(commands, parent, &history.time);
+    if entries.is_empty() {
+        bevy_presentation::spawn_muted_label(
+            commands,
+            parent,
+            "No chronicle entries have been recorded.",
+        );
+    } else {
+        for (index, (_, entry)) in entries.iter().enumerate() {
+            let button = bevy_presentation::spawn_action_button(
+                commands,
+                parent,
+                index,
+                "history",
+                format!("Day {} {} {}", entry.day, entry_marker(entry), entry.text),
+            );
+            if selected == index {
+                commands.entity(button).insert(bevy_presentation::UiSelected);
+            }
+        }
+    }
+
+    bevy_presentation::spawn_label(commands, parent, "PERSONAL NOTES");
+    if character.notes.is_empty() {
+        bevy_presentation::spawn_muted_label(commands, parent, "The journal is empty.");
+    } else {
+        for (index, note) in character.notes.iter().enumerate() {
+            bevy_presentation::spawn_muted_label(
+                commands,
+                parent,
+                format!("{}. {}", index + 1, note),
+            );
+        }
+    }
+
+    let write_index = entries.len();
+    let button = bevy_presentation::spawn_action_button(
+        commands,
+        parent,
+        write_index,
+        "write",
+        "Write journal note",
+    );
+    if selected == write_index {
+        commands.entity(button).insert(bevy_presentation::UiSelected);
+    }
+}
+
 fn render_quest_detail(commands: &mut Commands, view: Option<&QuestView>) {
     let panel = render_header(
         commands,
