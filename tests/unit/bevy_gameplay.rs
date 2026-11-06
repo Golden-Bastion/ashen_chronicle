@@ -48,8 +48,8 @@ fn animate_world_clouds_does_not_move_clouds_while_paused() {
 
 #[test]
 fn pause_action_count_matches_load_visibility() {
-    assert_eq!(pause_actions_from(false).len(), 9);
-    assert_eq!(pause_actions_from(true).len(), 10);
+    assert_eq!(pause_actions_from(false).len(), 5);
+    assert_eq!(pause_actions_from(true).len(), 6);
 }
 
 #[test]
@@ -59,10 +59,6 @@ fn pause_action_order_keeps_options_before_quit() {
         [
             PauseAction::Resume,
             PauseAction::Character,
-            PauseAction::Inventory,
-            PauseAction::Quests,
-            PauseAction::History,
-            PauseAction::Journal,
             PauseAction::NewGame,
             PauseAction::LoadGame,
             PauseAction::Options,
