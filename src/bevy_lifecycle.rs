@@ -813,6 +813,9 @@ fn render(commands: &mut Commands, lifecycle: &LifecycleState) {
     }
 }
 
+const SAVE_SLOT_ICON: &str = "folder";
+const BEGIN_LIFE_ICON: &str = "new-game";
+
 const START_ACTIONS_WITH_LOAD: &[(&str, &str)] = &[
     ("new-game", "New Game"),
     ("load-game", "Load Game"),
@@ -875,7 +878,7 @@ fn render_load(commands: &mut Commands, panel: Entity, lifecycle: &LifecycleStat
             ),
         };
         let button = bevy_presentation::spawn_action_button_with_detail(
-            commands, panel, index, "folder", label, details,
+            commands, panel, index, SAVE_SLOT_ICON, label, details,
         );
         if lifecycle.selected == index {
             commands
@@ -962,7 +965,7 @@ fn render_creation(commands: &mut Commands, panel: Entity, lifecycle: &Lifecycle
                 commands,
                 footer,
                 3,
-                "new-game",
+                BEGIN_LIFE_ICON,
                 "Begin Life",
             );
             if lifecycle.selected == 3 {
