@@ -2,9 +2,7 @@
 
 use std::path::PathBuf;
 
-use bevy::picking::hover::Hovered;
 use bevy::prelude::*;
-use bevy::ui_widgets::Button;
 
 use crate::bevy_gameplay::GameplayState;
 use crate::bevy_lifecycle::{LifecyclePhase, LifecycleState};
