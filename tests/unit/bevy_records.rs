@@ -32,3 +32,31 @@ fn journal_does_not_repeat_the_note_as_a_chronicle_entry() {
         &notes
     ));
 }
+
+#[test]
+fn character_tab_back_action_follows_tab_content() {
+    assert_eq!(
+        character_tab_back_index(CharacterTab::General, 3, 2, 4),
+        0
+    );
+    assert_eq!(
+        character_tab_selection_count(CharacterTab::Reputation, 3, 2, 4),
+        1
+    );
+    assert_eq!(
+        character_tab_back_index(CharacterTab::Inventory, 3, 2, 4),
+        3
+    );
+    assert_eq!(
+        character_tab_selection_count(CharacterTab::Quests, 3, 2, 4),
+        3
+    );
+    assert_eq!(
+        character_tab_back_index(CharacterTab::Journal, 3, 2, 4),
+        5
+    );
+    assert_eq!(
+        character_tab_selection_count(CharacterTab::Journal, 3, 2, 4),
+        6
+    );
+}
