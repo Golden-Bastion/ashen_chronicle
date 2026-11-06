@@ -875,7 +875,7 @@ fn render_spatial_screen(
                 padding: UiRect::all(px(8)),
                 ..default()
             },
-            BackgroundColor(Color::srgba(0.07, 0.045, 0.08, 0.88)),
+            BackgroundColor(bevy_presentation::THEME_SURFACE_STRONG),
         ))
         .id();
     commands.entity(root).add_child(status);
@@ -962,7 +962,7 @@ fn spawn_virtual_joystick(commands: &mut Commands, parent: Entity) {
                 align_items: AlignItems::Center,
                 ..default()
             },
-            BackgroundColor(Color::srgba(0.07, 0.06, 0.08, 0.70)),
+            BackgroundColor(Color::srgba(0.07, 0.07, 0.07, 0.70)),
             BorderColor::all(bevy_presentation::THEME_BORDER),
         ))
         .id();
