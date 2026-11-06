@@ -63,7 +63,7 @@ src/
 ├── bevy_navigation_bridge.rs # lifecycle completion and gameplay re-entry hand-offs
 ├── bevy_gameplay.rs         # gameplay dashboard and world navigation
 ├── bevy_interactions.rs     # NPC dialogue and remains-recovery screens
-├── bevy_records.rs          # character/inventory/quest/meditation/history/journal screens
+├── bevy_records.rs          # Character hub, record details, meditation, and journal flows
 ├── bevy_combat.rs           # combat presentation and interaction
 ├── bevy_spatial.rs          # Bevy spatial exploration rendering, movement, camera, and controls
 ├── bevy_console.rs          # developer-console presentation and input
