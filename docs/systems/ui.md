@@ -75,7 +75,7 @@ The following layouts interpret the approved visual reference. They describe the
 
 ### Character hub, inventory, and equipment
 
-- Treat the character screen as a navigable hub rather than one oversized panel. Group overview, attributes, conditions, skills, relationships, journal/quests, reputation, and legacy into clear sections or tabs where the underlying systems support them.
+- Treat the character screen as a navigable hub rather than one oversized panel. The current tabs are General, Reputation, Inventory, Quests, and Journal; future skills, relationships, work, followers, and legacy can become sections or tabs as their systems are implemented.
 - Make identity and progression easy to scan: portrait, name/background, level or milestones, relevant attributes, conditions, and traits.
 - Show equipped gear in relation to the character, with identifiable slots and an item grid or list that can be filtered by category. Communicate item properties and carrying limits where they matter.
 - Keep equipment, inventory, skills, and records closely connected without forcing every detail onto the spatial HUD.
