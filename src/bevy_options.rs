@@ -2,9 +2,7 @@
 
 use std::path::PathBuf;
 
-use bevy::picking::hover::Hovered;
 use bevy::prelude::*;
-use bevy::ui_widgets::Button;
 
 use crate::bevy_gameplay::GameplayState;
 use crate::bevy_lifecycle::{LifecyclePhase, LifecycleState};
@@ -581,53 +579,12 @@ fn render_if_active(
         BorderColor::all(bevy_presentation::THEME_BORDER),
         BackgroundColor(bevy_presentation::THEME_SURFACE_STRONG),
     ));
-    let tab_strip = commands
-        .spawn(Node {
-            width: percent(100),
-            min_width: px(0),
-            flex_direction: FlexDirection::Row,
-            flex_wrap: FlexWrap::Wrap,
-            column_gap: bevy_presentation::responsive_compact_gap(),
-            row_gap: px(4),
-            flex_shrink: 0.0,
-            ..default()
-        })
-        .id();
-    commands.entity(panel).add_child(tab_strip);
-    commands.entity(tab_strip).with_children(|tabs| {
-        for (index, label) in [(0, "Saves"), (1, "Mods"), (2, "Interface")] {
-            let mut tab = tabs.spawn((
-                Button,
-                Hovered::default(),
-                bevy_presentation::UiTouchTargetShape::MinimumHeight,
-                bevy_presentation::ChoiceButton { index },
-                bevy_presentation::UiTabButton { index },
-                bevy_presentation::UiStyledButton,
-                Node {
-                    width: Val::Auto,
-                    min_width: px(100),
-                    min_height: bevy_presentation::touch_target_size(),
-                    padding: UiRect::axes(bevy_presentation::responsive_surface_padding(), px(6)),
-                    border: UiRect::all(px(1)),
-                    justify_content: JustifyContent::Center,
-                    align_items: AlignItems::Center,
-                    flex_shrink: 0.0,
-                    ..default()
-                },
-                BorderColor::all(bevy_presentation::THEME_BORDER),
-                BackgroundColor(bevy_presentation::THEME_SURFACE),
-                children![(
-                    Text::new(label),
-                    bevy_presentation::TextContent,
-                    TextFont::from_font_size(bevy_presentation::muted_font_size()),
-                    TextColor(bevy_presentation::THEME_TEXT),
-                )],
-            ));
-            if options.tab == index {
-                tab.insert(UiSelected);
-            }
-        }
-    });
+    bevy_presentation::spawn_tab_strip(
+        &mut commands,
+        panel,
+        &["Saves", "Mods", "Interface"],
+        options.tab,
+    );
 
     let list = bevy_presentation::spawn_scrollable_list(&mut commands, panel);
     match options.tab {

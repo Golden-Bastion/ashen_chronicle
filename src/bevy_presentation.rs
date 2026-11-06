@@ -667,6 +667,63 @@ pub fn spawn_option_footer(commands: &mut Commands, parent: Entity) -> Entity {
     footer
 }
 
+/// Creates the shared, themed tab strip used by multi-section screens.
+pub fn spawn_tab_strip(
+    commands: &mut Commands,
+    parent: Entity,
+    labels: &[&str],
+    selected: usize,
+) -> Entity {
+    let tab_strip = commands
+        .spawn(Node {
+            width: percent(100),
+            min_width: px(0),
+            flex_direction: FlexDirection::Row,
+            flex_wrap: FlexWrap::Wrap,
+            column_gap: responsive_compact_gap(),
+            row_gap: px(4),
+            flex_shrink: 0.0,
+            ..default()
+        })
+        .id();
+    commands.entity(parent).add_child(tab_strip);
+    commands.entity(tab_strip).with_children(|tabs| {
+        for (index, label) in labels.iter().enumerate() {
+            let mut tab = tabs.spawn((
+                Button,
+                Hovered::default(),
+                UiTouchTargetShape::MinimumHeight,
+                ChoiceButton { index },
+                UiTabButton { index },
+                UiStyledButton,
+                Node {
+                    width: Val::Auto,
+                    min_width: px(100),
+                    min_height: touch_target_size(),
+                    padding: UiRect::axes(responsive_surface_padding(), px(6)),
+                    border: UiRect::all(px(1)),
+                    justify_content: JustifyContent::Center,
+                    align_items: AlignItems::Center,
+                    flex_shrink: 0.0,
+                    ..default()
+                },
+                BorderColor::all(THEME_BORDER),
+                BackgroundColor(THEME_SURFACE),
+                children![(
+                    Text::new(*label),
+                    TextContent,
+                    TextFont::from_font_size(muted_font_size()),
+                    TextColor(THEME_TEXT),
+                )],
+            ));
+            if selected == index {
+                tab.insert(UiSelected);
+            }
+        }
+    });
+    tab_strip
+}
+
 fn standalone_label_node() -> Node {
     Node {
         width: percent(100),
@@ -1890,8 +1947,14 @@ fn choice_button_input(
             continue;
         };
         if let Some(tab) = tab {
-            if navigation.current_screen == Some(ScreenId::Options) {
-                gameplay_queue.0.push(InputEvent::SelectTab(tab.index));
+            match navigation.current_screen {
+                Some(ScreenId::Options) => {
+                    gameplay_queue.0.push(InputEvent::SelectTab(tab.index));
+                }
+                Some(ScreenId::Lifecycle) => {
+                    lifecycle_queue.0.push(InputEvent::SelectTab(tab.index));
+                }
+                _ => {}
             }
             continue;
         }
