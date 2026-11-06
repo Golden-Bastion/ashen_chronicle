@@ -278,15 +278,14 @@ fn selection_count(records_state: &RecordScreenState, lifecycle: &LifecycleState
             let quest_count = records::build_quest_log_view(&session.state).quests.len();
             let character_view = character::build_character_sheet_view(&session.state);
             let history_view = history_screen::build_view(&session.state);
-            let chronicle_count =
-                journal_chronicle_entries(&history_view, &character_view).len();
+            let chronicle_count = journal_chronicle_entries(&history_view, &character_view).len();
             character_tab_selection_count(
                 records_state.character_tab,
                 inventory_count,
                 quest_count,
                 chronicle_count,
             )
-        },
+        }
         RecordScreen::InventoryDetail
         | RecordScreen::QuestDetail
         | RecordScreen::MeditationResult
@@ -581,14 +580,13 @@ fn render_character_hub(
     bevy_presentation::spawn_muted_label(
         commands,
         panel,
-        format!("{} | Level {}", character.character.display_name(), character.level),
+        format!(
+            "{} | Level {}",
+            character.character.display_name(),
+            character.level
+        ),
     );
-    bevy_presentation::spawn_tab_strip(
-        commands,
-        panel,
-        &CHARACTER_TAB_LABELS,
-        tab.index(),
-    );
+    bevy_presentation::spawn_tab_strip(commands, panel, &CHARACTER_TAB_LABELS, tab.index());
     let content = bevy_presentation::spawn_scrollable_list(commands, panel);
 
     match tab {
@@ -656,7 +654,10 @@ fn render_character_general_tab(
             bevy_presentation::spawn_muted_label(
                 commands,
                 parent,
-                format!("{} | {} portions{}", condition.name, condition.remaining, effect),
+                format!(
+                    "{} | {} portions{}",
+                    condition.name, condition.remaining, effect
+                ),
             );
         }
     }
@@ -706,7 +707,9 @@ fn render_inventory_tab(
             item.name.clone(),
         );
         if selected == index {
-            commands.entity(button).insert(bevy_presentation::UiSelected);
+            commands
+                .entity(button)
+                .insert(bevy_presentation::UiSelected);
         }
     }
 }
@@ -716,7 +719,9 @@ fn render_inventory_detail(commands: &mut Commands, view: &Option<InventoryDetai
     let Some(view) = view else {
         bevy_presentation::spawn_muted_label(commands, panel, "That item is no longer available.");
         let button = bevy_presentation::spawn_action_button(commands, panel, 0, "back", "Back");
-        commands.entity(button).insert(bevy_presentation::UiSelected);
+        commands
+            .entity(button)
+            .insert(bevy_presentation::UiSelected);
         return;
     };
     bevy_presentation::spawn_label(commands, panel, &view.item.name);
@@ -743,7 +748,9 @@ fn render_inventory_detail(commands: &mut Commands, view: &Option<InventoryDetai
     }
     let button =
         bevy_presentation::spawn_action_button(commands, panel, 0, "back", "Back to inventory");
-    commands.entity(button).insert(bevy_presentation::UiSelected);
+    commands
+        .entity(button)
+        .insert(bevy_presentation::UiSelected);
 }
 
 fn render_quests_tab(
@@ -765,7 +772,9 @@ fn render_quests_tab(
             format!("[{}] {}", quest.status, quest.title),
         );
         if selected == index {
-            commands.entity(button).insert(bevy_presentation::UiSelected);
+            commands
+                .entity(button)
+                .insert(bevy_presentation::UiSelected);
         }
     }
 }
@@ -796,7 +805,9 @@ fn render_journal_tab(
                 format!("Day {} {} {}", entry.day, entry_marker(entry), entry.text),
             );
             if selected == index {
-                commands.entity(button).insert(bevy_presentation::UiSelected);
+                commands
+                    .entity(button)
+                    .insert(bevy_presentation::UiSelected);
             }
         }
     }
@@ -823,7 +834,9 @@ fn render_journal_tab(
         "Write journal note",
     );
     if selected == write_index {
-        commands.entity(button).insert(bevy_presentation::UiSelected);
+        commands
+            .entity(button)
+            .insert(bevy_presentation::UiSelected);
     }
 }
 
@@ -998,16 +1011,14 @@ fn render_journal_entry(
     selected: usize,
     message: Option<&str>,
 ) {
-    let panel = render_header(
-        commands,
-        "WRITE IN JOURNAL",
-        state.character.display_name(),
-    );
+    let panel = render_header(commands, "WRITE IN JOURNAL", state.character.display_name());
     if let Some(message) = message {
         bevy_presentation::spawn_label(commands, panel, message);
         let button =
             bevy_presentation::spawn_action_button(commands, panel, 0, "continue", "Continue");
-        commands.entity(button).insert(bevy_presentation::UiSelected);
+        commands
+            .entity(button)
+            .insert(bevy_presentation::UiSelected);
         return;
     }
     bevy_presentation::spawn_muted_label(commands, panel, "Type a note. Backspace edits it.");
@@ -1026,7 +1037,9 @@ fn render_journal_entry(
     {
         let button = bevy_presentation::spawn_action_button(commands, panel, index, icon, label);
         if selected == index {
-            commands.entity(button).insert(bevy_presentation::UiSelected);
+            commands
+                .entity(button)
+                .insert(bevy_presentation::UiSelected);
         }
     }
 }
