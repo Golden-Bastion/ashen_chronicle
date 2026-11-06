@@ -878,7 +878,12 @@ fn render_load(commands: &mut Commands, panel: Entity, lifecycle: &LifecycleStat
             ),
         };
         let button = bevy_presentation::spawn_action_button_with_detail(
-            commands, panel, index, SAVE_SLOT_ICON, label, details,
+            commands,
+            panel,
+            index,
+            SAVE_SLOT_ICON,
+            label,
+            details,
         );
         if lifecycle.selected == index {
             commands
@@ -887,8 +892,7 @@ fn render_load(commands: &mut Commands, panel: Entity, lifecycle: &LifecycleStat
         }
     }
     let back_index = lifecycle.save_files.len();
-    let back =
-        bevy_presentation::spawn_action_button(commands, panel, back_index, "back", "Back");
+    let back = bevy_presentation::spawn_action_button(commands, panel, back_index, "back", "Back");
     if lifecycle.selected == back_index {
         commands.entity(back).insert(bevy_presentation::UiSelected);
     }
@@ -1228,9 +1232,7 @@ fn next_quit_variant() -> usize {
     nanos % QUIT_VARIANTS.len()
 }
 
-fn quit_confirmation_visuals(
-    variant: &QuitVariant,
-) -> [(&'static str, &'static str); 2] {
+fn quit_confirmation_visuals(variant: &QuitVariant) -> [(&'static str, &'static str); 2] {
     [("quit", variant.leave), ("resume", variant.stay)]
 }
 
