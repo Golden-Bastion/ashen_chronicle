@@ -177,9 +177,7 @@ fn load_celestial_art(
                 return;
             };
             let Some((sun_rect, moon_rect)) = celestial_source_rects(source.size()) else {
-                warn!(
-                    "Celestial world art {REFERENCE} must be a landscape two-panel image"
-                );
+                warn!("Celestial world art {REFERENCE} must be a landscape two-panel image");
                 return;
             };
             celestial.image = Some(image);
