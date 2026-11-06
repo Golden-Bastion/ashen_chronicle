@@ -195,3 +195,35 @@ fn gauge_ratio_handles_empty_and_clamps_values() {
     assert_eq!(gauge_ratio(15, 10), 1.0);
     assert_eq!(gauge_ratio(5, 10), 0.5);
 }
+
+
+#[test]
+fn shared_tab_strip_marks_only_the_selected_tab() {
+    #[derive(Resource)]
+    struct Fixture(Entity);
+
+    fn setup(mut commands: Commands) {
+        let parent = commands.spawn_empty().id();
+        let strip = spawn_tab_strip(&mut commands, parent, &["World", "Character", "Start"], 1);
+        commands.insert_resource(Fixture(strip));
+    }
+
+    let mut world = World::new();
+    let mut schedule = Schedule::default();
+    schedule.add_systems(setup);
+    schedule.run(&mut world);
+
+    let strip = world.resource::<Fixture>().0;
+    let tabs = world
+        .get::<Children>(strip)
+        .unwrap()
+        .iter()
+        .collect::<Vec<_>>();
+    assert_eq!(tabs.len(), 3);
+
+    for (index, entity) in tabs.into_iter().enumerate() {
+        assert_eq!(world.get::<ChoiceButton>(entity).unwrap().index, index);
+        assert_eq!(world.get::<UiTabButton>(entity).unwrap().index, index);
+        assert_eq!(world.get::<UiSelected>(entity).is_some(), index == 1);
+    }
+}
