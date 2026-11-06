@@ -26,10 +26,6 @@ pub(crate) enum GameplayScreen {
 enum PauseAction {
     Resume,
     Character,
-    Inventory,
-    Quests,
-    History,
-    Journal,
     NewGame,
     LoadGame,
     Options,
@@ -324,10 +320,6 @@ fn pause_actions_from(has_load: bool) -> Vec<PauseAction> {
     let mut actions = vec![
         PauseAction::Resume,
         PauseAction::Character,
-        PauseAction::Inventory,
-        PauseAction::Quests,
-        PauseAction::History,
-        PauseAction::Journal,
         PauseAction::NewGame,
     ];
     if has_load {
@@ -366,22 +358,6 @@ fn activate_selection(
                 PauseAction::Character => {
                     gameplay.dirty = true;
                     open_dedicated_screen(navigation_state, ScreenId::Character);
-                }
-                PauseAction::Inventory => {
-                    gameplay.dirty = true;
-                    open_dedicated_screen(navigation_state, ScreenId::Inventory);
-                }
-                PauseAction::Quests => {
-                    gameplay.dirty = true;
-                    open_dedicated_screen(navigation_state, ScreenId::Quests);
-                }
-                PauseAction::History => {
-                    gameplay.dirty = true;
-                    open_dedicated_screen(navigation_state, ScreenId::History);
-                }
-                PauseAction::Journal => {
-                    gameplay.dirty = true;
-                    open_dedicated_screen(navigation_state, ScreenId::Journal);
                 }
                 PauseAction::NewGame => {
                     gameplay.screen = GameplayScreen::Dashboard;
@@ -1146,10 +1122,6 @@ fn pause_action_visuals(action: PauseAction) -> (&'static str, &'static str) {
     match action {
         PauseAction::Resume => ("resume", "Resume"),
         PauseAction::Character => ("character", "Character"),
-        PauseAction::Inventory => ("inventory", "Inventory"),
-        PauseAction::Quests => ("quests", "Quests"),
-        PauseAction::History => ("history", "History"),
-        PauseAction::Journal => ("journal", "Journal"),
         PauseAction::NewGame => ("new-game", "New Game"),
         PauseAction::LoadGame => ("load-game", "Load Game"),
         PauseAction::Options => ("options", "Options"),
