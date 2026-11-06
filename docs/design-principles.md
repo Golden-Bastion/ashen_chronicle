@@ -24,7 +24,7 @@ This document is the canonical record of the current product direction. It super
 15. **Character-centred large battles.** The player participates directly and influences nearby allies or subordinates rather than commanding a remote strategy map.
 16. **Autonomous allies.** Allies act competently and contextually. Orders, relationships, and morale matter; constant micromanagement is not required.
 17. **Knowledge-based information.** Information reflects character knowledge. Unknown motives and events remain unknown; known indicators and uncertainty may be communicated.
-18. **Character screen as a broad hub.** Personal development, relationships, followers, work, reputation, and legacy can live in distinct tabs or sections. Existing screens such as Inventory, Quests, and History may remain.
+18. **Character screen as a broad hub.** Personal development, relationships, followers, work, reputation, and legacy can live in distinct tabs or sections. Inventory, Quests, and Journal belong under Character rather than as separate pause-menu destinations.
 19. **Hybrid navigation.** Keep spatial gameplay clean and immersive, make frequent or contextual actions accessible, and put broader records and decisions in menus.
 20. **Hierarchical information density.** Keep spatial gameplay relatively uncluttered and organise detailed information in record screens.
 21. **Adaptive HUD.** Keep essential indicators visible and surface extra context during combat, interactions, and other situations that need it.

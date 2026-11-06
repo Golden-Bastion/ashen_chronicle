@@ -366,11 +366,7 @@ pub enum ScreenId {
     Lifecycle,
     Gameplay,
     Character,
-    Inventory,
-    Quests,
     Meditation,
-    History,
-    Journal,
     Talk,
     Conversation,
     Remains,
@@ -1948,7 +1944,7 @@ fn choice_button_input(
         };
         if let Some(tab) = tab {
             match navigation.current_screen {
-                Some(ScreenId::Options) => {
+                Some(ScreenId::Options | ScreenId::Character) => {
                     gameplay_queue.0.push(InputEvent::SelectTab(tab.index));
                 }
                 Some(ScreenId::Lifecycle) => {
