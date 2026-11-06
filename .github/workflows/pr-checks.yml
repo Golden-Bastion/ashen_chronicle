@@ -20,7 +20,7 @@ permissions:
 
 jobs:
   format:
-    name: Format PR
+    name: Format
     if: github.actor != 'github-actions[bot]' && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     permissions:
@@ -52,7 +52,8 @@ jobs:
         run: |
           set -euo pipefail
 
-          cargo fmt --all
+          echo '=== cargo fmt --all ==='
+          cargo fmt --all -v
 
           if git diff --quiet; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
@@ -95,31 +96,15 @@ jobs:
         run: |
           set +e
 
-          : > clippy.log
-          cargo clippy --all-targets --all-features -- -D warnings 2>&1 | tee clippy.log
+          echo '=== cargo clippy -D warnings ==='
+          cargo clippy --all-targets --all-features -- -D warnings
           clippy_status=${PIPESTATUS[0]}
 
-          echo "clippy_status=$clippy_status" >> clippy.log
+          echo "clippy_status=$clippy_status"
+
           if [ "$clippy_status" -ne 0 ]; then
             exit 1
           fi
-
-      - name: Archive Clippy log
-        if: always()
-        shell: bash
-        run: |
-          set +e
-          tar caf clippy-log.tar.xz clippy.log
-
-      - name: Upload Clippy log
-        if: always()
-        uses: actions/upload-artifact@v7.0.1
-        with:
-          path: clippy-log.tar.xz
-          if-no-files-found: error
-          retention-days: 7
-          archive: false
-          overwrite: true
 
   test:
     name: Test
@@ -141,48 +126,18 @@ jobs:
           cache-shared-key: test
           cache-save-if: ${{ github.ref == 'refs/heads/main' }}
 
-      - name: Run formatting and tests
+      - name: Run tests
         shell: bash
         run: |
           set +e
 
-          : > test.log
-
-          echo '=== cargo fmt --check ===' >> test.log
-          cargo fmt --all -- --check >> test.log 2>&1
-          fmt_status=$?
-
-          echo >> test.log
-          echo '=== cargo test --lib ===' >> test.log
-          cargo test --lib --features dev --no-fail-fast >> test.log 2>&1
+          echo '=== cargo test --lib ==='
+          cargo test --lib --features dev --no-fail-fast
           test_status=$?
 
-          echo >> test.log
-          echo "fmt_status=$fmt_status" >> test.log
-          echo "test_status=$test_status" >> test.log
+          echo "test_status=$test_status"
 
-          if [ "$fmt_status" -ne 0 ] || [ "$test_status" -ne 0 ]; then
-            echo "fmt_status=$fmt_status"
-            echo "test_status=$test_status"
-            echo '=== test.log ==='
-            tail -n 20 test.log
+          if [ "$test_status" -ne 0 ]; then
             exit 1
           fi
-
-      - name: Archive test log
-        if: always()
-        shell: bash
-        run: |
-          set +e
-          tar caf test-log.tar.xz test.log
-
-      - name: Upload test log
-        if: always()
-        uses: actions/upload-artifact@v7.0.1
-        with:
-          path: test-log.tar.xz
-          if-no-files-found: error
-          retention-days: 7
-          archive: false
-          overwrite: true
 
