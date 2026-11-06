@@ -349,7 +349,8 @@ fn move_selection(
 ) {
     let min = min_selection(lifecycle);
     let max = max_selection(lifecycle);
-    let selected = (lifecycle.selected as isize + direction).clamp(min as isize, max as isize) as usize;
+    let selected =
+        (lifecycle.selected as isize + direction).clamp(min as isize, max as isize) as usize;
     set_selection(lifecycle, navigation, selected);
 }
 
