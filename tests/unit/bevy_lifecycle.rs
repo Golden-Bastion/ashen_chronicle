@@ -227,3 +227,36 @@ fn empty_creation_values_keep_the_existing_effective_defaults() {
     assert_eq!(lifecycle.effective_character_name(), "My Character");
     assert_eq!(lifecycle.effective_character_title(), "My Title");
 }
+
+#[test]
+fn lifecycle_buttons_reference_existing_ui_icon_assets() {
+    let mut icons = vec![SAVE_SLOT_ICON, BEGIN_LIFE_ICON];
+    icons.extend(
+        start_action_visuals(true)
+            .iter()
+            .chain(start_action_visuals(false).iter())
+            .map(|(icon, _)| *icon),
+    );
+    icons.extend(
+        quit_confirmation_visuals(&QuitVariant {
+            question: "Question",
+            leave: "Leave",
+            stay: "Stay",
+            art: "",
+        })
+        .iter()
+        .map(|(icon, _)| *icon),
+    );
+    icons.extend(death_action_visuals().iter().map(|(icon, _)| *icon));
+
+    for icon in icons {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("data/assets/icons/ui")
+            .join(format!("{icon}.png"));
+        assert!(
+            path.is_file(),
+            "missing bundled UI icon asset: {}",
+            path.display()
+        );
+    }
+}

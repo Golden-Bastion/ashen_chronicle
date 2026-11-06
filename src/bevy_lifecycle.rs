@@ -813,6 +813,30 @@ fn render(commands: &mut Commands, lifecycle: &LifecycleState) {
     }
 }
 
+const SAVE_SLOT_ICON: &str = "folder";
+const BEGIN_LIFE_ICON: &str = "new-game";
+
+const START_ACTIONS_WITH_LOAD: &[(&str, &str)] = &[
+    ("new-game", "New Game"),
+    ("load-game", "Load Game"),
+    ("options", "Options"),
+    ("quit", "Quit"),
+];
+
+const START_ACTIONS_WITHOUT_LOAD: &[(&str, &str)] = &[
+    ("new-game", "New Game"),
+    ("options", "Options"),
+    ("quit", "Quit"),
+];
+
+fn start_action_visuals(has_load: bool) -> &'static [(&'static str, &'static str)] {
+    if has_load {
+        START_ACTIONS_WITH_LOAD
+    } else {
+        START_ACTIONS_WITHOUT_LOAD
+    }
+}
+
 fn render_start(commands: &mut Commands, panel: Entity, lifecycle: &LifecycleState) {
     bevy_presentation::spawn_muted_label(
         commands,
@@ -823,16 +847,7 @@ fn render_start(commands: &mut Commands, panel: Entity, lifecycle: &LifecycleSta
         bevy_presentation::spawn_muted_label(commands, panel, message);
     }
 
-    let actions: &[(&str, &str)] = if start_has_load(lifecycle) {
-        &[
-            ("✦", "New Game"),
-            ("↺", "Load Game"),
-            ("⚙", "Options"),
-            ("×", "Quit"),
-        ]
-    } else {
-        &[("✦", "New Game"), ("⚙", "Options"), ("×", "Quit")]
-    };
+    let actions = start_action_visuals(start_has_load(lifecycle));
     for (index, (icon, label)) in actions.iter().enumerate() {
         let button = bevy_presentation::spawn_action_button(commands, panel, index, *icon, *label);
         if lifecycle.selected == index {
@@ -863,7 +878,12 @@ fn render_load(commands: &mut Commands, panel: Entity, lifecycle: &LifecycleStat
             ),
         };
         let button = bevy_presentation::spawn_action_button_with_detail(
-            commands, panel, index, "▣", label, details,
+            commands,
+            panel,
+            index,
+            SAVE_SLOT_ICON,
+            label,
+            details,
         );
         if lifecycle.selected == index {
             commands
@@ -872,7 +892,7 @@ fn render_load(commands: &mut Commands, panel: Entity, lifecycle: &LifecycleStat
         }
     }
     let back_index = lifecycle.save_files.len();
-    let back = bevy_presentation::spawn_action_button(commands, panel, back_index, "←", "Back");
+    let back = bevy_presentation::spawn_action_button(commands, panel, back_index, "back", "Back");
     if lifecycle.selected == back_index {
         commands.entity(back).insert(bevy_presentation::UiSelected);
     }
@@ -945,8 +965,13 @@ fn render_creation(commands: &mut Commands, panel: Entity, lifecycle: &Lifecycle
             );
 
             let footer = bevy_presentation::spawn_option_footer(commands, panel);
-            let button =
-                bevy_presentation::spawn_action_button(commands, footer, 3, "▶", "Begin Life");
+            let button = bevy_presentation::spawn_action_button(
+                commands,
+                footer,
+                3,
+                BEGIN_LIFE_ICON,
+                "Begin Life",
+            );
             if lifecycle.selected == 3 {
                 commands
                     .entity(button)
@@ -1207,6 +1232,10 @@ fn next_quit_variant() -> usize {
     nanos % QUIT_VARIANTS.len()
 }
 
+fn quit_confirmation_visuals(variant: &QuitVariant) -> [(&'static str, &'static str); 2] {
+    [("quit", variant.leave), ("resume", variant.stay)]
+}
+
 fn render_quit(commands: &mut Commands, panel: Entity, lifecycle: &LifecycleState) {
     let variant = QUIT_VARIANTS
         .get(lifecycle.quit_variant % QUIT_VARIANTS.len())
@@ -1229,10 +1258,7 @@ fn render_quit(commands: &mut Commands, panel: Entity, lifecycle: &LifecycleStat
         ))
         .id();
     commands.entity(panel).add_child(art);
-    for (index, (icon, label)) in [("×", variant.leave), ("↩", variant.stay)]
-        .into_iter()
-        .enumerate()
-    {
+    for (index, (icon, label)) in quit_confirmation_visuals(variant).into_iter().enumerate() {
         let button = bevy_presentation::spawn_action_button(commands, panel, index, icon, label);
         if lifecycle.selected == index {
             commands
@@ -1245,7 +1271,7 @@ fn render_quit(commands: &mut Commands, panel: Entity, lifecycle: &LifecycleStat
 fn render_complete(commands: &mut Commands, panel: Entity, lifecycle: &LifecycleState) {
     let Some(session) = lifecycle.session.as_ref() else {
         bevy_presentation::spawn_muted_label(commands, panel, "No active life.");
-        let button = bevy_presentation::spawn_action_button(commands, panel, 0, "×", "Quit");
+        let button = bevy_presentation::spawn_action_button(commands, panel, 0, "quit", "Quit");
         if lifecycle.selected == 0 {
             commands
                 .entity(button)
@@ -1269,12 +1295,20 @@ fn render_complete(commands: &mut Commands, panel: Entity, lifecycle: &Lifecycle
     if let Some(message) = &lifecycle.message {
         bevy_presentation::spawn_muted_label(commands, panel, message);
     }
-    let button = bevy_presentation::spawn_action_button(commands, panel, 0, "×", "Quit");
+    let button = bevy_presentation::spawn_action_button(commands, panel, 0, "quit", "Quit");
     if lifecycle.selected == 0 {
         commands
             .entity(button)
             .insert(bevy_presentation::UiSelected);
     }
+}
+
+fn death_action_visuals() -> [(&'static str, &'static str); 3] {
+    [
+        ("new-game", "Create a new world"),
+        ("character", "Inherit this world with a new character"),
+        ("quit", "Quit"),
+    ]
 }
 
 fn render_death(commands: &mut Commands, panel: Entity, lifecycle: &LifecycleState) {
@@ -1290,14 +1324,7 @@ fn render_death(commands: &mut Commands, panel: Entity, lifecycle: &LifecycleSta
         bevy_presentation::spawn_label(commands, panel, line);
     }
     bevy_presentation::spawn_muted_label(commands, panel, view.memory_note);
-    for (index, (icon, label)) in [
-        ("✦", "Create a new world"),
-        ("↻", "Inherit this world with a new character"),
-        ("×", "Quit"),
-    ]
-    .into_iter()
-    .enumerate()
-    {
+    for (index, (icon, label)) in death_action_visuals().into_iter().enumerate() {
         let button = bevy_presentation::spawn_action_button(commands, panel, index, icon, label);
         if lifecycle.selected == index {
             commands
