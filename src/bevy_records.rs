@@ -1,7 +1,7 @@
-//! Bevy presentation and navigation for non-combat gameplay records.
+//! Bevy presentation and navigation for the Character hub and other non-combat records.
 //!
-//! Character, inventory, quest, meditation, history, and journal screens reuse
-//! the existing frontend-neutral view models and authoritative game mutations.
+//! Character tabs and their detail flows reuse the existing frontend-neutral view
+//! models and authoritative game mutations.
 
 use bevy::input::keyboard::KeyboardInput;
 use bevy::prelude::*;
