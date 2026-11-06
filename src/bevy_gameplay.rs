@@ -730,7 +730,7 @@ fn render_location(
                 ..default()
             },
             BorderColor::all(bevy_presentation::THEME_BORDER),
-            BackgroundColor(Color::srgba(0.11, 0.095, 0.10, 0.88)),
+            BackgroundColor(bevy_presentation::THEME_SURFACE_STRONG),
         ))
         .id();
     commands.entity(parent).add_child(card);
@@ -800,7 +800,7 @@ fn render_location(
                 bottom: px(8),
                 ..default()
             },
-            BackgroundColor(Color::srgba(0.02, 0.018, 0.02, 0.28)),
+            BackgroundColor(Color::srgba(0.02, 0.02, 0.02, 0.28)),
         ));
     });
 }
@@ -843,7 +843,7 @@ fn render_world_context(
                 ..default()
             },
             BorderColor::all(bevy_presentation::THEME_BORDER),
-            BackgroundColor(Color::srgba(0.06, 0.045, 0.05, 0.84)),
+            BackgroundColor(bevy_presentation::THEME_SURFACE_STRONG),
         ))
         .id();
     commands.entity(parent).add_child(context);
@@ -885,7 +885,7 @@ fn render_player_hud(commands: &mut Commands, parent: Entity, view: &WorldView) 
                 ..default()
             },
             BorderColor::all(bevy_presentation::THEME_BORDER),
-            BackgroundColor(Color::srgba(0.08, 0.055, 0.065, 0.94)),
+            BackgroundColor(bevy_presentation::THEME_SURFACE_STRONG),
         ))
         .id();
     commands.entity(controls).add_child(hud);
