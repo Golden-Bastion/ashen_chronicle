@@ -1240,30 +1240,6 @@ fn resolve_ui_icons(
     }
 }
 
-/// Spawn a centered image node that resolves on the next presentation update.
-pub(crate) fn spawn_icon_image(
-    commands: &mut Commands,
-    parent: Entity,
-    icon: impl Into<String>,
-    size: f32,
-) -> Entity {
-    let entity = commands
-        .spawn((
-            Node {
-                width: px(size),
-                height: px(size),
-                min_width: px(size),
-                min_height: px(size),
-                flex_shrink: 0.0,
-                ..default()
-            },
-            UiIconName(icon.into()),
-        ))
-        .id();
-    commands.entity(parent).add_child(entity);
-    entity
-}
-
 pub fn spawn_action_button(
     commands: &mut Commands,
     parent: Entity,
