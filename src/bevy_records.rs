@@ -17,52 +17,80 @@ use crate::presentation::{
     QuestLogView, QuestView,
 };
 
+const CHARACTER_TAB_LABELS: [&str; 5] = ["General", "Reputation", "Inventory", "Quests", "Journal"];
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum RecordScreen {
-    CharacterGeneral,
-    CharacterReputation,
-    CharacterJournal,
+enum CharacterTab {
+    General,
+    Reputation,
     Inventory,
-    InventoryDetail,
-    QuestLog,
-    QuestDetail,
-    Meditation,
-    MeditationResult,
-    History,
-    HistoryDetail,
-    JournalEntry,
+    Quests,
+    Journal,
+}
+
+impl CharacterTab {
+    const ALL: [Self; 5] = [
+        Self::General,
+        Self::Reputation,
+        Self::Inventory,
+        Self::Quests,
+        Self::Journal,
+    ];
+
+    fn from_index(index: usize) -> Option<Self> {
+        Self::ALL.get(index).copied()
+    }
+
+    fn index(self) -> usize {
+        match self {
+            Self::General => 0,
+            Self::Reputation => 1,
+            Self::Inventory => 2,
+            Self::Quests => 3,
+            Self::Journal => 4,
+        }
+    }
+
+    fn next(self) -> Self {
+        Self::ALL[(self.index() + 1) % Self::ALL.len()]
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum JournalParent {
-    Gameplay,
+enum RecordScreen {
     Character,
+    InventoryDetail,
+    QuestDetail,
+    Meditation,
+    MeditationResult,
+    ChronicleDetail,
+    JournalEntry,
 }
 
 #[derive(Resource)]
 pub(crate) struct RecordScreenState {
     screen: RecordScreen,
     active_navigation: Option<ScreenId>,
+    character_tab: CharacterTab,
     selected: usize,
     detail_index: usize,
     message: Option<String>,
     meditation_result: Option<crate::presentation::MeditationResultView>,
     journal_draft: String,
-    journal_parent: JournalParent,
     dirty: bool,
 }
 
 impl Default for RecordScreenState {
     fn default() -> Self {
         Self {
-            screen: RecordScreen::CharacterGeneral,
+            screen: RecordScreen::Character,
             active_navigation: None,
+            character_tab: CharacterTab::General,
             selected: 0,
             detail_index: 0,
             message: None,
             meditation_result: None,
             journal_draft: String::new(),
-            journal_parent: JournalParent::Gameplay,
             dirty: true,
         }
     }
@@ -76,17 +104,7 @@ pub(crate) fn install(app: &mut App) {
 }
 
 fn is_record_screen(screen: Option<ScreenId>) -> bool {
-    matches!(
-        screen,
-        Some(
-            ScreenId::Character
-                | ScreenId::Inventory
-                | ScreenId::Quests
-                | ScreenId::Meditation
-                | ScreenId::History
-                | ScreenId::Journal
-        )
-    )
+    matches!(screen, Some(ScreenId::Character | ScreenId::Meditation))
 }
 
 fn sync_screen(
@@ -108,20 +126,18 @@ fn sync_screen(
 
     records_state.active_navigation = Some(screen);
     records_state.screen = match screen {
-        ScreenId::Character => RecordScreen::CharacterGeneral,
-        ScreenId::Inventory => RecordScreen::Inventory,
-        ScreenId::Quests => RecordScreen::QuestLog,
+        ScreenId::Character => {
+            records_state.character_tab = CharacterTab::General;
+            RecordScreen::Character
+        }
         ScreenId::Meditation => RecordScreen::Meditation,
-        ScreenId::History => RecordScreen::History,
-        ScreenId::Journal => RecordScreen::JournalEntry,
-        _ => RecordScreen::CharacterGeneral,
+        _ => return,
     };
     records_state.selected = 0;
     records_state.detail_index = 0;
     records_state.message = None;
     records_state.meditation_result = None;
     records_state.journal_draft.clear();
-    records_state.journal_parent = JournalParent::Gameplay;
     records_state.dirty = true;
 }
 
@@ -163,6 +179,20 @@ fn record_input(
     let events = std::mem::take(&mut input_queue.0);
     for event in events {
         match event {
+            InputEvent::SelectTab(index) if records_state.screen == RecordScreen::Character => {
+                if let Some(tab) = CharacterTab::from_index(index) {
+                    records_state.character_tab = tab;
+                    records_state.selected = 0;
+                    records_state.message = None;
+                    records_state.dirty = true;
+                }
+            }
+            InputEvent::Tab if records_state.screen == RecordScreen::Character => {
+                records_state.character_tab = records_state.character_tab.next();
+                records_state.selected = 0;
+                records_state.message = None;
+                records_state.dirty = true;
+            }
             InputEvent::Up => move_selection(&mut records_state, &lifecycle, -1),
             InputEvent::Down => move_selection(&mut records_state, &lifecycle, 1),
             InputEvent::Home => {
@@ -191,18 +221,49 @@ fn record_input(
     }
 }
 
+fn journal_chronicle_entries<'a>(
+    history: &'a HistoryView,
+    character: &CharacterSheetView,
+) -> Vec<(usize, &'a HistoryEntryView)> {
+    history
+        .entries
+        .iter()
+        .enumerate()
+        .filter(|(_, entry)| {
+            !is_personal_note_history_entry(
+                &entry.text,
+                &character.character.display_name(),
+                &character.notes,
+            )
+        })
+        .collect()
+}
+
+fn is_personal_note_history_entry(text: &str, character_name: &str, notes: &[String]) -> bool {
+    let prefix = format!("{character_name} noted: ");
+    text.strip_prefix(&prefix)
+        .is_some_and(|note| notes.iter().any(|saved_note| saved_note == note))
+}
+
 fn selection_count(records_state: &RecordScreenState, lifecycle: &LifecycleState) -> usize {
     let Some(session) = lifecycle.session.as_ref() else {
         return 1;
     };
     match records_state.screen {
-        RecordScreen::CharacterGeneral => 3,
-        RecordScreen::CharacterReputation => 1,
-        RecordScreen::CharacterJournal => 2,
-        RecordScreen::Inventory => records::build_inventory_view(&session.state).items.len() + 1,
-        RecordScreen::InventoryDetail => 1,
-        RecordScreen::QuestLog => records::build_quest_log_view(&session.state).quests.len() + 1,
-        RecordScreen::QuestDetail => 1,
+        RecordScreen::Character => match records_state.character_tab {
+            CharacterTab::General | CharacterTab::Reputation => 0,
+            CharacterTab::Inventory => records::build_inventory_view(&session.state).items.len(),
+            CharacterTab::Quests => records::build_quest_log_view(&session.state).quests.len(),
+            CharacterTab::Journal => {
+                let character_view = character::build_character_sheet_view(&session.state);
+                let history_view = history_screen::build_view(&session.state);
+                journal_chronicle_entries(&history_view, &character_view).len() + 1
+            }
+        },
+        RecordScreen::InventoryDetail
+        | RecordScreen::QuestDetail
+        | RecordScreen::MeditationResult
+        | RecordScreen::ChronicleDetail => 1,
         RecordScreen::Meditation => {
             let view = actions::build_meditation_view(&session.state);
             if view.safe_to_meditate {
@@ -211,9 +272,6 @@ fn selection_count(records_state: &RecordScreenState, lifecycle: &LifecycleState
                 1
             }
         }
-        RecordScreen::MeditationResult => 1,
-        RecordScreen::History => history_screen::build_view(&session.state).entries.len() + 1,
-        RecordScreen::HistoryDetail => 1,
         RecordScreen::JournalEntry => 2,
     }
 }
@@ -246,6 +304,14 @@ fn close_to_gameplay(navigation: &mut NavigationState) {
     navigation.selected = 0;
 }
 
+fn return_to_character(records_state: &mut RecordScreenState, tab: CharacterTab) {
+    records_state.screen = RecordScreen::Character;
+    records_state.character_tab = tab;
+    records_state.selected = records_state.detail_index;
+    records_state.message = None;
+    records_state.dirty = true;
+}
+
 fn activate(
     lifecycle: &mut LifecycleState,
     navigation: &mut NavigationState,
@@ -256,70 +322,49 @@ fn activate(
     };
 
     match records_state.screen {
-        RecordScreen::CharacterGeneral => match records_state.selected {
-            0 => {
-                records_state.screen = RecordScreen::CharacterReputation;
-                records_state.selected = 0;
-                records_state.dirty = true;
+        RecordScreen::Character => match records_state.character_tab {
+            CharacterTab::General | CharacterTab::Reputation => {}
+            CharacterTab::Inventory => {
+                let view = records::build_inventory_view(&session.state);
+                if records_state.selected < view.items.len() {
+                    records_state.detail_index = records_state.selected;
+                    records_state.screen = RecordScreen::InventoryDetail;
+                    records_state.selected = 0;
+                    records_state.dirty = true;
+                }
             }
-            1 => {
-                records_state.screen = RecordScreen::CharacterJournal;
-                records_state.selected = 0;
-                records_state.dirty = true;
+            CharacterTab::Quests => {
+                let view = records::build_quest_log_view(&session.state);
+                if records_state.selected < view.quests.len() {
+                    records_state.detail_index = records_state.selected;
+                    records_state.screen = RecordScreen::QuestDetail;
+                    records_state.selected = 0;
+                    records_state.dirty = true;
+                }
             }
-            _ => close_to_gameplay(navigation),
+            CharacterTab::Journal => {
+                let character_view = character::build_character_sheet_view(&session.state);
+                let history_view = history_screen::build_view(&session.state);
+                let entries = journal_chronicle_entries(&history_view, &character_view);
+                if records_state.selected < entries.len() {
+                    records_state.detail_index = records_state.selected;
+                    records_state.screen = RecordScreen::ChronicleDetail;
+                    records_state.selected = 0;
+                    records_state.dirty = true;
+                } else if records_state.selected == entries.len() {
+                    records_state.screen = RecordScreen::JournalEntry;
+                    records_state.selected = 0;
+                    records_state.message = None;
+                    records_state.journal_draft.clear();
+                    records_state.dirty = true;
+                }
+            }
         },
-        RecordScreen::CharacterReputation => {
-            records_state.screen = RecordScreen::CharacterGeneral;
-            records_state.selected = 0;
-            records_state.dirty = true;
-        }
-        RecordScreen::CharacterJournal => match records_state.selected {
-            0 => {
-                records_state.journal_parent = JournalParent::Character;
-                records_state.screen = RecordScreen::JournalEntry;
-                records_state.selected = 0;
-                records_state.message = None;
-                records_state.journal_draft.clear();
-                records_state.dirty = true;
-            }
-            _ => {
-                records_state.screen = RecordScreen::CharacterGeneral;
-                records_state.selected = 0;
-                records_state.dirty = true;
-            }
-        },
-        RecordScreen::Inventory => {
-            let view = records::build_inventory_view(&session.state);
-            if records_state.selected >= view.items.len() {
-                close_to_gameplay(navigation);
-            } else {
-                records_state.detail_index = records_state.selected;
-                records_state.screen = RecordScreen::InventoryDetail;
-                records_state.selected = 0;
-                records_state.dirty = true;
-            }
-        }
         RecordScreen::InventoryDetail => {
-            records_state.screen = RecordScreen::Inventory;
-            records_state.selected = records_state.detail_index;
-            records_state.dirty = true;
-        }
-        RecordScreen::QuestLog => {
-            let view = records::build_quest_log_view(&session.state);
-            if records_state.selected >= view.quests.len() {
-                close_to_gameplay(navigation);
-            } else {
-                records_state.detail_index = records_state.selected;
-                records_state.screen = RecordScreen::QuestDetail;
-                records_state.selected = 0;
-                records_state.dirty = true;
-            }
+            return_to_character(records_state, CharacterTab::Inventory);
         }
         RecordScreen::QuestDetail => {
-            records_state.screen = RecordScreen::QuestLog;
-            records_state.selected = records_state.detail_index;
-            records_state.dirty = true;
+            return_to_character(records_state, CharacterTab::Quests);
         }
         RecordScreen::Meditation => {
             let view = actions::build_meditation_view(&session.state);
@@ -346,32 +391,17 @@ fn activate(
             }
         }
         RecordScreen::MeditationResult => close_to_gameplay(navigation),
-        RecordScreen::History => {
-            let view = history_screen::build_view(&session.state);
-            if records_state.selected >= view.entries.len() {
-                close_to_gameplay(navigation);
-            } else {
-                records_state.detail_index = records_state.selected;
-                records_state.screen = RecordScreen::HistoryDetail;
-                records_state.selected = 0;
-                records_state.dirty = true;
-            }
-        }
-        RecordScreen::HistoryDetail => {
-            records_state.screen = RecordScreen::History;
-            records_state.selected = records_state.detail_index;
-            records_state.dirty = true;
+        RecordScreen::ChronicleDetail => {
+            return_to_character(records_state, CharacterTab::Journal);
         }
         RecordScreen::JournalEntry => {
             if records_state.message.is_some() {
-                if records_state.journal_parent == JournalParent::Character {
-                    records_state.screen = RecordScreen::CharacterJournal;
-                    records_state.selected = 0;
-                    records_state.message = None;
-                    records_state.dirty = true;
-                } else {
-                    close_to_gameplay(navigation);
-                }
+                records_state.screen = RecordScreen::Character;
+                records_state.character_tab = CharacterTab::Journal;
+                records_state.selected = 0;
+                records_state.message = None;
+                records_state.journal_draft.clear();
+                records_state.dirty = true;
                 return;
             }
             match records_state.selected {
@@ -388,14 +418,12 @@ fn activate(
                     records_state.dirty = true;
                 }
                 _ => {
-                    if records_state.journal_parent == JournalParent::Character {
-                        records_state.screen = RecordScreen::CharacterJournal;
-                        records_state.selected = 0;
-                        records_state.journal_draft.clear();
-                        records_state.dirty = true;
-                    } else {
-                        close_to_gameplay(navigation);
-                    }
+                    records_state.screen = RecordScreen::Character;
+                    records_state.character_tab = CharacterTab::Journal;
+                    records_state.selected = 0;
+                    records_state.journal_draft.clear();
+                    records_state.message = None;
+                    records_state.dirty = true;
                 }
             }
         }
@@ -404,42 +432,25 @@ fn activate(
 
 fn cancel(navigation: &mut NavigationState, records_state: &mut RecordScreenState) {
     match records_state.screen {
-        RecordScreen::CharacterGeneral
-        | RecordScreen::Inventory
-        | RecordScreen::QuestLog
-        | RecordScreen::Meditation
-        | RecordScreen::History
-        | RecordScreen::MeditationResult => close_to_gameplay(navigation),
-        RecordScreen::CharacterReputation | RecordScreen::CharacterJournal => {
-            records_state.screen = RecordScreen::CharacterGeneral;
-            records_state.selected = 0;
-            records_state.message = None;
-            records_state.dirty = true;
+        RecordScreen::Character | RecordScreen::Meditation | RecordScreen::MeditationResult => {
+            close_to_gameplay(navigation);
         }
         RecordScreen::InventoryDetail => {
-            records_state.screen = RecordScreen::Inventory;
-            records_state.selected = records_state.detail_index;
-            records_state.dirty = true;
+            return_to_character(records_state, CharacterTab::Inventory);
         }
         RecordScreen::QuestDetail => {
-            records_state.screen = RecordScreen::QuestLog;
-            records_state.selected = records_state.detail_index;
-            records_state.dirty = true;
+            return_to_character(records_state, CharacterTab::Quests);
         }
-        RecordScreen::HistoryDetail => {
-            records_state.screen = RecordScreen::History;
-            records_state.selected = records_state.detail_index;
-            records_state.dirty = true;
+        RecordScreen::ChronicleDetail => {
+            return_to_character(records_state, CharacterTab::Journal);
         }
         RecordScreen::JournalEntry => {
-            if records_state.journal_parent == JournalParent::Character {
-                records_state.screen = RecordScreen::CharacterJournal;
-                records_state.selected = 0;
-                records_state.message = None;
-                records_state.dirty = true;
-            } else {
-                close_to_gameplay(navigation);
-            }
+            records_state.screen = RecordScreen::Character;
+            records_state.character_tab = CharacterTab::Journal;
+            records_state.selected = 0;
+            records_state.message = None;
+            records_state.journal_draft.clear();
+            records_state.dirty = true;
         }
     }
 }
@@ -465,34 +476,20 @@ fn render_if_active(
     let Some(session) = lifecycle.session.as_ref() else {
         return;
     };
+    let character_view = character::build_character_sheet_view(&session.state);
     match records_state.screen {
-        RecordScreen::CharacterGeneral => render_character_general(
+        RecordScreen::Character => render_character_hub(
             &mut commands,
-            &character::build_character_sheet_view(&session.state),
-            records_state.selected,
-        ),
-        RecordScreen::CharacterReputation => render_character_reputation(
-            &mut commands,
-            &character::build_character_sheet_view(&session.state),
-        ),
-        RecordScreen::CharacterJournal => render_character_journal(
-            &mut commands,
-            &character::build_character_sheet_view(&session.state),
-            records_state.selected,
-        ),
-        RecordScreen::Inventory => render_inventory(
-            &mut commands,
+            &character_view,
             &records::build_inventory_view(&session.state),
+            &records::build_quest_log_view(&session.state),
+            &history_screen::build_view(&session.state),
+            records_state.character_tab,
             records_state.selected,
         ),
         RecordScreen::InventoryDetail => render_inventory_detail(
             &mut commands,
             &records::build_inventory_detail_view(&session.state, records_state.detail_index),
-        ),
-        RecordScreen::QuestLog => render_quests(
-            &mut commands,
-            &records::build_quest_log_view(&session.state),
-            records_state.selected,
         ),
         RecordScreen::QuestDetail => render_quest_detail(
             &mut commands,
@@ -507,24 +504,22 @@ fn render_if_active(
         RecordScreen::MeditationResult => {
             render_meditation_result(&mut commands, records_state.meditation_result.as_ref())
         }
-        RecordScreen::History => render_history(
-            &mut commands,
-            &history_screen::build_view(&session.state),
-            records_state.selected,
-        ),
-        RecordScreen::HistoryDetail => render_history_detail(
-            &mut commands,
-            history_screen::build_view(&session.state)
-                .entries
-                .get(records_state.detail_index),
-        ),
+        RecordScreen::ChronicleDetail => {
+            let history_view = history_screen::build_view(&session.state);
+            let entries = journal_chronicle_entries(&history_view, &character_view);
+            render_chronicle_detail(
+                &mut commands,
+                entries
+                    .get(records_state.detail_index)
+                    .map(|(_, entry)| *entry),
+            );
+        }
         RecordScreen::JournalEntry => render_journal_entry(
             &mut commands,
             &session.state,
             &records_state.journal_draft,
             records_state.selected,
             records_state.message.as_deref(),
-            records_state.journal_parent,
         ),
     }
     records_state.dirty = false;
@@ -537,15 +532,50 @@ fn render_header(commands: &mut Commands, title: &str, subtitle: impl Into<Strin
     panel
 }
 
-fn render_character_general(commands: &mut Commands, view: &CharacterSheetView, selected: usize) {
-    let panel = render_header(
-        commands,
-        "CHARACTER",
-        format!("{} | Level {}", view.character.display_name(), view.level),
-    );
-    bevy_presentation::spawn_label(
+fn render_character_hub(
+    commands: &mut Commands,
+    character: &CharacterSheetView,
+    inventory: &InventoryView,
+    quests: &QuestLogView,
+    history: &HistoryView,
+    tab: CharacterTab,
+    selected: usize,
+) {
+    let root = bevy_presentation::spawn_screen(commands, "CHARACTER");
+    let panel = bevy_presentation::spawn_fixed_panel(commands, root);
+    bevy_presentation::spawn_muted_label(
         commands,
         panel,
+        format!("{} | Level {}", character.character.display_name(), character.level),
+    );
+    bevy_presentation::spawn_tab_strip(
+        commands,
+        panel,
+        &CHARACTER_TAB_LABELS,
+        tab.index(),
+    );
+    let content = bevy_presentation::spawn_scrollable_list(commands, panel);
+
+    match tab {
+        CharacterTab::General => render_character_general_tab(commands, content, character),
+        CharacterTab::Reputation => render_character_reputation_tab(commands, content, character),
+        CharacterTab::Inventory => render_inventory_tab(commands, content, inventory, selected),
+        CharacterTab::Quests => render_quests_tab(commands, content, quests, selected),
+        CharacterTab::Journal => {
+            render_journal_tab(commands, content, character, history, selected);
+        }
+    }
+
+}
+
+fn render_character_general_tab(
+    commands: &mut Commands,
+    parent: Entity,
+    view: &CharacterSheetView,
+) {
+    bevy_presentation::spawn_label(
+        commands,
+        parent,
         format!(
             "Health: {}/{} | Experience: {}/{}",
             view.character.hp, view.character.max_hp, view.experience, view.next_level_experience
@@ -553,7 +583,7 @@ fn render_character_general(commands: &mut Commands, view: &CharacterSheetView, 
     );
     bevy_presentation::spawn_label(
         commands,
-        panel,
+        parent,
         format!(
             "Might {} (effective {}) | Insight {} (effective {}) | Endurance {} (effective {})",
             view.attributes.might,
@@ -565,9 +595,9 @@ fn render_character_general(commands: &mut Commands, view: &CharacterSheetView, 
         ),
     );
     if view.conditions.is_empty() {
-        bevy_presentation::spawn_muted_label(commands, panel, "Conditions: none");
+        bevy_presentation::spawn_muted_label(commands, parent, "Conditions: none");
     } else {
-        bevy_presentation::spawn_label(commands, panel, "Conditions");
+        bevy_presentation::spawn_label(commands, parent, "Conditions");
         for condition in &view.conditions {
             let effect = match (condition.penalty, condition.bonus) {
                 (penalty, bonus) if penalty < 0 && bonus > 0 => {
@@ -579,186 +609,59 @@ fn render_character_general(commands: &mut Commands, view: &CharacterSheetView, 
             };
             bevy_presentation::spawn_muted_label(
                 commands,
-                panel,
-                format!(
-                    "{} | {} portions{}",
-                    condition.name, condition.remaining, effect
-                ),
+                parent,
+                format!("{} | {} portions{}", condition.name, condition.remaining, effect),
             );
-        }
-    }
-    for (index, (icon, label)) in [
-        ("reputation", "Reputation"),
-        ("journal", "Journal"),
-        ("back", "Back"),
-    ]
-    .into_iter()
-    .enumerate()
-    {
-        let button = bevy_presentation::spawn_action_button(commands, panel, index, icon, label);
-        if index == selected {
-            commands
-                .entity(button)
-                .insert(bevy_presentation::UiSelected);
         }
     }
 }
 
-fn render_character_reputation(commands: &mut Commands, view: &CharacterSheetView) {
-    let panel = render_header(
-        commands,
-        "CHARACTER | REPUTATION",
-        "Faction standing and remembered dealings.",
-    );
+fn render_character_reputation_tab(
+    commands: &mut Commands,
+    parent: Entity,
+    view: &CharacterSheetView,
+) {
     if view.factions.is_empty() {
         bevy_presentation::spawn_muted_label(
             commands,
-            panel,
+            parent,
             "No faction reputations have been recorded.",
         );
     } else {
         for faction in &view.factions {
             bevy_presentation::spawn_label(
                 commands,
-                panel,
+                parent,
                 format!("{} {:+}", faction.name, faction.reputation),
             );
             for memory in faction.memories.iter().rev() {
-                bevy_presentation::spawn_muted_label(commands, panel, format!("  | {memory}"));
+                bevy_presentation::spawn_muted_label(commands, parent, format!("  | {memory}"));
             }
         }
     }
-    let button =
-        bevy_presentation::spawn_action_button(commands, panel, 0, "back", "Back to character");
-    commands
-        .entity(button)
-        .insert(bevy_presentation::UiSelected);
 }
 
-fn render_character_journal(commands: &mut Commands, view: &CharacterSheetView, selected: usize) {
-    let panel = render_header(commands, "CHARACTER | JOURNAL", "Recorded personal notes.");
-    if view.notes.is_empty() {
-        bevy_presentation::spawn_muted_label(commands, panel, "The journal is empty.");
-    } else {
-        for (index, note) in view.notes.iter().enumerate() {
-            bevy_presentation::spawn_muted_label(
-                commands,
-                panel,
-                format!("{}. {}", index + 1, note),
-            );
-        }
-    }
-    let write_index = 0;
-    let back_index = 1;
-    for (index, (icon, label)) in [
-        (write_index, ("write", "Write new note")),
-        (back_index, ("back", "Back")),
-    ] {
-        let button = bevy_presentation::spawn_action_button(commands, panel, index, icon, label);
-        if selected == index {
-            commands
-                .entity(button)
-                .insert(bevy_presentation::UiSelected);
-        }
-    }
-}
-
-fn render_inventory(commands: &mut Commands, view: &InventoryView, selected: usize) {
-    let panel = render_header(commands, "INVENTORY", view.character.display_name());
+fn render_inventory_tab(
+    commands: &mut Commands,
+    parent: Entity,
+    view: &InventoryView,
+    selected: usize,
+) {
     if view.items.is_empty() {
-        bevy_presentation::spawn_muted_label(commands, panel, "Your pack is empty.");
-    } else {
-        for (index, item) in view.items.iter().enumerate() {
-            let button = bevy_presentation::spawn_action_button(
-                commands,
-                panel,
-                index,
-                "item",
-                item.name.clone(),
-            );
-            if selected == index {
-                commands
-                    .entity(button)
-                    .insert(bevy_presentation::UiSelected);
-            }
-        }
-    }
-    let back_index = view.items.len();
-    let button =
-        bevy_presentation::spawn_action_button(commands, panel, back_index, "back", "Back");
-    if selected == back_index {
-        commands
-            .entity(button)
-            .insert(bevy_presentation::UiSelected);
-    }
-}
-
-fn render_inventory_detail(commands: &mut Commands, view: &Option<InventoryDetailView>) {
-    let panel = render_header(commands, "INVENTORY | ITEM", "Inspect the selected item.");
-    let Some(view) = view else {
-        bevy_presentation::spawn_muted_label(commands, panel, "That item is no longer available.");
-        let button = bevy_presentation::spawn_action_button(commands, panel, 0, "back", "Back");
-        commands
-            .entity(button)
-            .insert(bevy_presentation::UiSelected);
+        bevy_presentation::spawn_muted_label(commands, parent, "Your pack is empty.");
         return;
-    };
-    bevy_presentation::spawn_label(commands, panel, &view.item.name);
-    bevy_presentation::spawn_muted_label(
-        commands,
-        panel,
-        format!("Item {} of {}", view.position, view.total),
-    );
-    bevy_presentation::spawn_muted_label(
-        commands,
-        panel,
-        if view.item.description.trim().is_empty() {
-            "No description is available.".to_string()
-        } else {
-            view.item.description.clone()
-        },
-    );
-    if view.art.is_some() {
-        bevy_presentation::spawn_muted_label(
+    }
+    for (index, item) in view.items.iter().enumerate() {
+        let button = bevy_presentation::spawn_action_button(
             commands,
-            panel,
-            "Item art is available in the campaign content.",
+            parent,
+            index,
+            "item",
+            item.name.clone(),
         );
-    }
-    let button =
-        bevy_presentation::spawn_action_button(commands, panel, 0, "back", "Back to inventory");
-    commands
-        .entity(button)
-        .insert(bevy_presentation::UiSelected);
-}
-
-fn render_quests(commands: &mut Commands, view: &QuestLogView, selected: usize) {
-    let panel = render_header(commands, "QUEST LOG", view.character.display_name());
-    if view.quests.is_empty() {
-        bevy_presentation::spawn_muted_label(commands, panel, "No quests have been recorded yet.");
-    } else {
-        for (index, quest) in view.quests.iter().enumerate() {
-            let button = bevy_presentation::spawn_action_button(
-                commands,
-                panel,
-                index,
-                "quests",
-                format!("[{}] {}", quest.status, quest.title),
-            );
-            if selected == index {
-                commands
-                    .entity(button)
-                    .insert(bevy_presentation::UiSelected);
-            }
+        if selected == index {
+            commands.entity(button).insert(bevy_presentation::UiSelected);
         }
-    }
-    let back_index = view.quests.len();
-    let button =
-        bevy_presentation::spawn_action_button(commands, panel, back_index, "back", "Back");
-    if selected == back_index {
-        commands
-            .entity(button)
-            .insert(bevy_presentation::UiSelected);
     }
 }
 
@@ -894,47 +797,8 @@ fn render_meditation_result(
         .insert(bevy_presentation::UiSelected);
 }
 
-fn render_history(commands: &mut Commands, view: &HistoryView, selected: usize) {
-    let panel = render_header(
-        commands,
-        "WORLD HISTORY",
-        format!("{} | {}", view.world_name, view.character.display_name()),
-    );
-    bevy_presentation::spawn_muted_label(commands, panel, &view.time);
-    if view.entries.is_empty() {
-        bevy_presentation::spawn_muted_label(
-            commands,
-            panel,
-            "The world has not recorded any history yet.",
-        );
-    } else {
-        for (index, entry) in view.entries.iter().enumerate() {
-            let button = bevy_presentation::spawn_action_button(
-                commands,
-                panel,
-                index,
-                "history",
-                format!("Day {} {} {}", entry.day, entry_marker(entry), entry.text),
-            );
-            if selected == index {
-                commands
-                    .entity(button)
-                    .insert(bevy_presentation::UiSelected);
-            }
-        }
-    }
-    let back_index = view.entries.len();
-    let button =
-        bevy_presentation::spawn_action_button(commands, panel, back_index, "back", "Back");
-    if selected == back_index {
-        commands
-            .entity(button)
-            .insert(bevy_presentation::UiSelected);
-    }
-}
-
-fn render_history_detail(commands: &mut Commands, entry: Option<&HistoryEntryView>) {
-    let panel = render_header(commands, "HISTORY | DETAILS", "Chronicle entry.");
+fn render_chronicle_detail(commands: &mut Commands, entry: Option<&HistoryEntryView>) {
+    let panel = render_header(commands, "JOURNAL | CHRONICLE", "Recorded world events.");
     let Some(entry) = entry else {
         bevy_presentation::spawn_muted_label(
             commands,
@@ -959,7 +823,7 @@ fn render_history_detail(commands: &mut Commands, entry: Option<&HistoryEntryVie
         bevy_presentation::spawn_muted_label(commands, panel, format!("Outcome: {outcome}"));
     }
     let button =
-        bevy_presentation::spawn_action_button(commands, panel, 0, "back", "Back to history");
+        bevy_presentation::spawn_action_button(commands, panel, 0, "back", "Back to journal");
     commands
         .entity(button)
         .insert(bevy_presentation::UiSelected);
@@ -971,23 +835,17 @@ fn render_journal_entry(
     draft: &str,
     selected: usize,
     message: Option<&str>,
-    parent: JournalParent,
 ) {
     let panel = render_header(
         commands,
-        "JOURNAL ENTRY",
-        match parent {
-            JournalParent::Gameplay => state.character.display_name(),
-            JournalParent::Character => "Character journal".to_string(),
-        },
+        "WRITE IN JOURNAL",
+        state.character.display_name(),
     );
     if let Some(message) = message {
         bevy_presentation::spawn_label(commands, panel, message);
         let button =
             bevy_presentation::spawn_action_button(commands, panel, 0, "continue", "Continue");
-        commands
-            .entity(button)
-            .insert(bevy_presentation::UiSelected);
+        commands.entity(button).insert(bevy_presentation::UiSelected);
         return;
     }
     bevy_presentation::spawn_muted_label(commands, panel, "Type a note. Backspace edits it.");
@@ -1006,9 +864,7 @@ fn render_journal_entry(
     {
         let button = bevy_presentation::spawn_action_button(commands, panel, index, icon, label);
         if selected == index {
-            commands
-                .entity(button)
-                .insert(bevy_presentation::UiSelected);
+            commands.entity(button).insert(bevy_presentation::UiSelected);
         }
     }
 }
@@ -1019,3 +875,7 @@ fn entry_marker(entry: &HistoryEntryView) -> &'static str {
         crate::presentation::HistoryEntryViewType::Narrative => "[NOTE]",
     }
 }
+
+#[cfg(test)]
+#[path = "../tests/unit/bevy_records.rs"]
+mod tests;
