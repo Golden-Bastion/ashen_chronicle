@@ -157,7 +157,6 @@ fn default_creation_values_match_legacy_flow() {
     assert_eq!(state.character_title, "Ash Walker");
 }
 
-
 #[test]
 fn creation_tabs_have_independent_selection_ranges() {
     assert_eq!(creation_selection_bounds(0), (0, 0));

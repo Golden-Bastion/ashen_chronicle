@@ -313,7 +313,11 @@ fn creation_selection_bounds(tab: usize) -> (usize, usize) {
 }
 
 fn creation_tab_for_field(index: usize) -> usize {
-    if index == 0 { 0 } else { 1 }
+    if index == 0 {
+        0
+    } else {
+        1
+    }
 }
 
 fn select_creation_tab(
@@ -926,11 +930,7 @@ fn render_creation(commands: &mut Commands, panel: Entity, lifecycle: &Lifecycle
             bevy_presentation::spawn_label(commands, content, "WORLD");
             bevy_presentation::spawn_label(commands, content, lifecycle.effective_world_name());
             bevy_presentation::spawn_label(commands, content, "CHARACTER");
-            bevy_presentation::spawn_label(
-                commands,
-                content,
-                lifecycle.effective_character_name(),
-            );
+            bevy_presentation::spawn_label(commands, content, lifecycle.effective_character_name());
             bevy_presentation::spawn_muted_label(
                 commands,
                 content,

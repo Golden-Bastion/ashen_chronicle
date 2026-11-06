@@ -196,7 +196,6 @@ fn gauge_ratio_handles_empty_and_clamps_values() {
     assert_eq!(gauge_ratio(5, 10), 0.5);
 }
 
-
 #[test]
 fn shared_tab_strip_marks_only_the_selected_tab() {
     #[derive(Resource)]
