@@ -1,6 +1,32 @@
 use super::*;
 
 #[test]
+fn celestial_art_regions_select_separate_sun_and_moon_panels() {
+    let (sun, moon) = celestial_source_rects(UVec2::new(1_672, 941))
+        .expect("landscape celestial atlas should be accepted");
+
+    assert!(sun.min.x >= 0.0);
+    assert!(sun.max.x < moon.min.x);
+    assert!(moon.max.x <= 1_672.0);
+    assert!(sun.min.y >= 0.0);
+    assert_eq!(sun.min.y, moon.min.y);
+    assert_eq!(sun.max.y, moon.max.y);
+    assert!(moon.max.y <= 941.0);
+}
+
+#[test]
+fn celestial_art_regions_reject_non_landscape_images() {
+    assert!(celestial_source_rects(UVec2::new(512, 1024)).is_none());
+    assert!(celestial_source_rects(UVec2::new(1, 512)).is_none());
+}
+
+#[test]
+fn sky_visual_uses_dedicated_celestial_art_instead_of_icon_names() {
+    assert_eq!(sky_visual(3).celestial, CelestialBody::Sun);
+    assert_eq!(sky_visual(10).celestial, CelestialBody::Moon);
+}
+
+#[test]
 fn gameplay_runtime_pause_entry_and_exit_update_runtime_state() {
     let mut gameplay = GameplayState::default();
     let mut runtime = GameplayRuntimeState::default();

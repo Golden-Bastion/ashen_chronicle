@@ -26,16 +26,17 @@ use std::sync::{
 
 use crate::input::InputEvent;
 
-pub const THEME_BACKGROUND: Color = Color::srgb(0.055, 0.045, 0.065);
-pub const THEME_PANEL: Color = Color::srgb(0.105, 0.085, 0.12);
-pub const THEME_PANEL_ALT: Color = Color::srgb(0.135, 0.11, 0.15);
+pub const THEME_BACKGROUND: Color = Color::srgb(7.0 / 255.0, 7.0 / 255.0, 7.0 / 255.0);
+pub const THEME_PANEL: Color = Color::srgb(16.0 / 255.0, 16.0 / 255.0, 16.0 / 255.0);
+pub const THEME_PANEL_ALT: Color = Color::srgb(25.0 / 255.0, 25.0 / 255.0, 25.0 / 255.0);
 pub const THEME_TEXT: Color = Color::srgb(0.9, 0.88, 0.82);
 pub const THEME_MUTED: Color = Color::srgb(0.62, 0.6, 0.58);
 pub const THEME_ACCENT: Color = Color::srgb(0.72, 0.62, 0.46);
-pub const THEME_SURFACE: Color = Color::srgba(0.07, 0.06, 0.08, 0.78);
-pub const THEME_SURFACE_STRONG: Color = Color::srgba(0.105, 0.085, 0.12, 0.94);
-pub const THEME_OVERLAY: Color = Color::srgba(0.02, 0.018, 0.025, 0.82);
-pub const THEME_OVERLAY_SOFT: Color = Color::srgba(0.02, 0.018, 0.025, 0.58);
+pub const THEME_SURFACE: Color = Color::srgba(14.0 / 255.0, 14.0 / 255.0, 14.0 / 255.0, 0.82);
+pub const THEME_SURFACE_STRONG: Color =
+    Color::srgba(22.0 / 255.0, 22.0 / 255.0, 22.0 / 255.0, 0.96);
+pub const THEME_OVERLAY: Color = Color::srgba(0.0, 0.0, 0.0, 0.82);
+pub const THEME_OVERLAY_SOFT: Color = Color::srgba(0.0, 0.0, 0.0, 0.58);
 pub const THEME_BLOOD: Color = Color::srgb(0.42, 0.035, 0.025);
 pub const THEME_BLOOD_DARK: Color = Color::srgb(0.11, 0.012, 0.012);
 pub const THEME_BORDER: Color = Color::srgba(0.35, 0.30, 0.24, 0.72);
@@ -1237,30 +1238,6 @@ fn resolve_ui_icons(
             }
         }
     }
-}
-
-/// Spawn a centered image node that resolves on the next presentation update.
-pub(crate) fn spawn_icon_image(
-    commands: &mut Commands,
-    parent: Entity,
-    icon: impl Into<String>,
-    size: f32,
-) -> Entity {
-    let entity = commands
-        .spawn((
-            Node {
-                width: px(size),
-                height: px(size),
-                min_width: px(size),
-                min_height: px(size),
-                flex_shrink: 0.0,
-                ..default()
-            },
-            UiIconName(icon.into()),
-        ))
-        .id();
-    commands.entity(parent).add_child(entity);
-    entity
 }
 
 pub fn spawn_action_button(

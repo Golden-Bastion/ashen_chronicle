@@ -323,7 +323,7 @@ fn render_if_active(
                 overflow: Overflow::scroll(),
                 ..default()
             },
-            BackgroundColor(Color::srgba(0.055, 0.045, 0.065, 0.97)),
+            BackgroundColor(Color::srgba(7.0 / 255.0, 7.0 / 255.0, 7.0 / 255.0, 0.97)),
         ))
         .id();
     commands.entity(parent).add_child(overlay);

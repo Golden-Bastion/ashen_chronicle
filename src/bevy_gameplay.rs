@@ -49,10 +49,16 @@ const PRIMARY_GAMEPLAY_ACTIONS: [GameplayAction; 4] = [
     GameplayAction::Explore,
 ];
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CelestialBody {
+    Sun,
+    Moon,
+}
+
 #[derive(Debug, Clone, Copy)]
 struct SkyVisual {
     background: Color,
-    celestial: &'static str,
+    celestial: CelestialBody,
     celestial_x: f32,
     celestial_y: f32,
     warm_horizon: bool,
@@ -73,6 +79,13 @@ pub(crate) struct GameplayRuntimeState {
 #[derive(Resource, Debug, Default)]
 struct LocationArtAssets {
     images: HashMap<String, Handle<Image>>,
+}
+
+#[derive(Resource, Default)]
+struct CelestialArtAssets {
+    image: Option<Handle<Image>>,
+    sun_rect: Option<Rect>,
+    moon_rect: Option<Rect>,
 }
 
 impl GameplayRuntimeState {
@@ -118,7 +131,8 @@ impl GameplayState {
 pub(crate) fn install(app: &mut App) {
     app.init_resource::<GameplayState>()
         .init_resource::<GameplayRuntimeState>()
-        .add_systems(Startup, load_location_art)
+        .init_resource::<CelestialArtAssets>()
+        .add_systems(Startup, (load_location_art, load_celestial_art))
         .add_systems(Update, (gameplay_input, render_if_active).chain())
         .add_systems(Update, animate_world_clouds);
 }
@@ -149,6 +163,44 @@ fn load_location_art(mut commands: Commands, mut images: ResMut<Assets<Image>>) 
     }
 
     commands.insert_resource(LocationArtAssets { images: loaded });
+}
+
+fn load_celestial_art(
+    mut images: ResMut<Assets<Image>>,
+    mut celestial: ResMut<CelestialArtAssets>,
+) {
+    const REFERENCE: &str = "world/celestial/sun-moon.png";
+    match crate::asset_loading::load_image_from_data(&mut images, REFERENCE) {
+        Ok(image) => {
+            let Some(source) = images.get(&image) else {
+                warn!("Could not inspect celestial world art {REFERENCE}");
+                return;
+            };
+            let Some((sun_rect, moon_rect)) = celestial_source_rects(source.size()) else {
+                warn!("Celestial world art {REFERENCE} must be a landscape two-panel image");
+                return;
+            };
+            celestial.image = Some(image);
+            celestial.sun_rect = Some(sun_rect);
+            celestial.moon_rect = Some(moon_rect);
+        }
+        Err(error) => {
+            warn!("Could not load celestial world art {REFERENCE}: {error}");
+        }
+    }
+}
+
+fn celestial_source_rects(size: UVec2) -> Option<(Rect, Rect)> {
+    if size.x <= size.y || size.x < 2 || size.y == 0 {
+        return None;
+    }
+
+    let width = size.x as f32;
+    let height = size.y as f32;
+    Some((
+        Rect::new(width * 0.04, height * 0.10, width * 0.49, height * 0.90),
+        Rect::new(width * 0.52, height * 0.10, width * 0.98, height * 0.90),
+    ))
 }
 
 fn gameplay_input(
@@ -522,6 +574,7 @@ fn render_if_active(
     mut gameplay: ResMut<GameplayState>,
     navigation_state: Res<NavigationState>,
     location_art: Res<LocationArtAssets>,
+    celestial_art: Res<CelestialArtAssets>,
     roots: Query<Entity, With<BevyScreenRoot>>,
 ) {
     if lifecycle.phase != LifecyclePhase::Complete
@@ -547,6 +600,7 @@ fn render_if_active(
                 &mut commands,
                 &view,
                 &location_art,
+                &celestial_art,
                 &actions,
                 gameplay.selected,
                 gameplay.message.as_deref(),
@@ -565,6 +619,7 @@ fn render_if_active(
                 &mut commands,
                 &view,
                 &location_art,
+                &celestial_art,
                 &actions,
                 gameplay.selected,
                 gameplay.message.as_deref(),
@@ -580,6 +635,7 @@ fn render_dashboard(
     commands: &mut Commands,
     view: &WorldView,
     location_art: &LocationArtAssets,
+    celestial_art: &CelestialArtAssets,
     actions: &[GameplayAction],
     selected: usize,
     message: Option<&str>,
@@ -621,7 +677,7 @@ fn render_dashboard(
             ));
         });
     }
-    spawn_celestial(commands, world, sky);
+    spawn_celestial(commands, world, sky, celestial_art);
     render_location(commands, world, view, location_art);
     render_world_context(commands, world, view, message);
     render_player_hud(commands, world, view);
@@ -689,21 +745,41 @@ fn spawn_world_ground(commands: &mut Commands, parent: Entity) {
     });
 }
 
-fn spawn_celestial(commands: &mut Commands, parent: Entity, sky: SkyVisual) {
+fn spawn_celestial(
+    commands: &mut Commands,
+    parent: Entity,
+    sky: SkyVisual,
+    assets: &CelestialArtAssets,
+) {
+    let Some(image) = assets.image.as_ref() else {
+        return;
+    };
+    let rect = match sky.celestial {
+        CelestialBody::Sun => assets.sun_rect,
+        CelestialBody::Moon => assets.moon_rect,
+    };
+    let Some(rect) = rect else {
+        return;
+    };
+
+    let size = bevy_presentation::responsive_vmin(26.0);
     let celestial = commands
-        .spawn(Node {
-            width: px(46),
-            height: px(46),
-            position_type: PositionType::Absolute,
-            left: percent(sky.celestial_x),
-            top: percent(sky.celestial_y),
-            justify_content: JustifyContent::Center,
-            align_items: AlignItems::Center,
-            ..default()
-        })
+        .spawn((
+            Node {
+                width: size,
+                height: size,
+                min_width: size,
+                min_height: size,
+                position_type: PositionType::Absolute,
+                left: percent(sky.celestial_x),
+                top: percent(sky.celestial_y),
+                flex_shrink: 0.0,
+                ..default()
+            },
+            ImageNode::new(image.clone()).with_rect(rect),
+        ))
         .id();
     commands.entity(parent).add_child(celestial);
-    bevy_presentation::spawn_icon_image(commands, celestial, sky.celestial, 38.0);
 }
 
 fn render_location(
@@ -730,7 +806,7 @@ fn render_location(
                 ..default()
             },
             BorderColor::all(bevy_presentation::THEME_BORDER),
-            BackgroundColor(Color::srgba(0.11, 0.095, 0.10, 0.88)),
+            BackgroundColor(bevy_presentation::THEME_SURFACE_STRONG),
         ))
         .id();
     commands.entity(parent).add_child(card);
@@ -800,7 +876,7 @@ fn render_location(
                 bottom: px(8),
                 ..default()
             },
-            BackgroundColor(Color::srgba(0.02, 0.018, 0.02, 0.28)),
+            BackgroundColor(Color::srgba(0.02, 0.02, 0.02, 0.28)),
         ));
     });
 }
@@ -843,7 +919,7 @@ fn render_world_context(
                 ..default()
             },
             BorderColor::all(bevy_presentation::THEME_BORDER),
-            BackgroundColor(Color::srgba(0.06, 0.045, 0.05, 0.84)),
+            BackgroundColor(bevy_presentation::THEME_SURFACE_STRONG),
         ))
         .id();
     commands.entity(parent).add_child(context);
@@ -885,7 +961,7 @@ fn render_player_hud(commands: &mut Commands, parent: Entity, view: &WorldView) 
                 ..default()
             },
             BorderColor::all(bevy_presentation::THEME_BORDER),
-            BackgroundColor(Color::srgba(0.08, 0.055, 0.065, 0.94)),
+            BackgroundColor(bevy_presentation::THEME_SURFACE_STRONG),
         ))
         .id();
     commands.entity(controls).add_child(hud);
@@ -985,84 +1061,84 @@ fn sky_visual(time_points: u32) -> SkyVisual {
     match time_points % 12 {
         0 => SkyVisual {
             background: bevy_presentation::THEME_SKY_NIGHT,
-            celestial: "moon",
+            celestial: CelestialBody::Moon,
             celestial_x: 78.0,
             celestial_y: 9.0,
             warm_horizon: false,
         },
         1 => SkyVisual {
             background: bevy_presentation::THEME_SKY_DAWN,
-            celestial: "moon",
+            celestial: CelestialBody::Moon,
             celestial_x: 67.0,
             celestial_y: 11.0,
             warm_horizon: true,
         },
         2 => SkyVisual {
             background: bevy_presentation::THEME_SKY_DAWN,
-            celestial: "sun",
+            celestial: CelestialBody::Sun,
             celestial_x: 58.0,
             celestial_y: 11.0,
             warm_horizon: true,
         },
         3 => SkyVisual {
             background: bevy_presentation::THEME_SKY_DAY,
-            celestial: "sun",
+            celestial: CelestialBody::Sun,
             celestial_x: 50.0,
             celestial_y: 7.0,
             warm_horizon: false,
         },
         4 => SkyVisual {
             background: bevy_presentation::THEME_SKY_DAY,
-            celestial: "sun",
+            celestial: CelestialBody::Sun,
             celestial_x: 42.0,
             celestial_y: 9.0,
             warm_horizon: false,
         },
         5 => SkyVisual {
             background: bevy_presentation::THEME_SKY_DAY,
-            celestial: "sun",
+            celestial: CelestialBody::Sun,
             celestial_x: 34.0,
             celestial_y: 11.0,
             warm_horizon: false,
         },
         6 => SkyVisual {
             background: bevy_presentation::THEME_SKY_DAY,
-            celestial: "sun",
+            celestial: CelestialBody::Sun,
             celestial_x: 25.0,
             celestial_y: 14.0,
             warm_horizon: false,
         },
         7 => SkyVisual {
             background: bevy_presentation::THEME_SKY_DUSK,
-            celestial: "sun",
+            celestial: CelestialBody::Sun,
             celestial_x: 17.0,
             celestial_y: 18.0,
             warm_horizon: true,
         },
         8 => SkyVisual {
             background: bevy_presentation::THEME_SKY_DUSK,
-            celestial: "moon",
+            celestial: CelestialBody::Moon,
             celestial_x: 10.0,
             celestial_y: 13.0,
             warm_horizon: true,
         },
         9 => SkyVisual {
             background: bevy_presentation::THEME_SKY_NIGHT,
-            celestial: "moon",
+            celestial: CelestialBody::Moon,
             celestial_x: 21.0,
             celestial_y: 10.0,
             warm_horizon: false,
         },
         10 => SkyVisual {
             background: bevy_presentation::THEME_SKY_NIGHT,
-            celestial: "moon",
+            celestial: CelestialBody::Moon,
             celestial_x: 37.0,
             celestial_y: 8.0,
             warm_horizon: false,
         },
         11 => SkyVisual {
             background: bevy_presentation::THEME_SKY_NIGHT,
-            celestial: "moon",
+            celestial: CelestialBody::Moon,
             celestial_x: 55.0,
             celestial_y: 8.0,
             warm_horizon: false,
