@@ -33,7 +33,8 @@ pub const THEME_TEXT: Color = Color::srgb(0.9, 0.88, 0.82);
 pub const THEME_MUTED: Color = Color::srgb(0.62, 0.6, 0.58);
 pub const THEME_ACCENT: Color = Color::srgb(0.72, 0.62, 0.46);
 pub const THEME_SURFACE: Color = Color::srgba(14.0 / 255.0, 14.0 / 255.0, 14.0 / 255.0, 0.82);
-pub const THEME_SURFACE_STRONG: Color = Color::srgba(22.0 / 255.0, 22.0 / 255.0, 22.0 / 255.0, 0.96);
+pub const THEME_SURFACE_STRONG: Color =
+    Color::srgba(22.0 / 255.0, 22.0 / 255.0, 22.0 / 255.0, 0.96);
 pub const THEME_OVERLAY: Color = Color::srgba(0.0, 0.0, 0.0, 0.82);
 pub const THEME_OVERLAY_SOFT: Color = Color::srgba(0.0, 0.0, 0.0, 0.58);
 pub const THEME_BLOOD: Color = Color::srgb(0.42, 0.035, 0.025);
