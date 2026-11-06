@@ -46,6 +46,7 @@ pub(crate) struct LifecycleState {
     pub(crate) save_files: Vec<PathBuf>,
     save_metadata: Vec<Option<crate::persistence::SaveMetadata>>,
     pub(crate) selected: usize,
+    pub(crate) creation_tab: usize,
     pub(crate) world_name: String,
     pub(crate) character_name: String,
     pub(crate) character_title: String,
@@ -63,6 +64,7 @@ impl Default for LifecycleState {
             save_files: Vec::new(),
             save_metadata: Vec::new(),
             selected: 0,
+            creation_tab: 0,
             world_name: "The Ashen Crown".to_string(),
             character_name: String::new(),
             character_title: "Ash Walker".to_string(),
@@ -112,10 +114,6 @@ fn lifecycle_input(
     fields: Query<(Entity, &LifecycleTextField)>,
     #[cfg(not(target_os = "android"))] mut commands: Commands,
 ) {
-    if input_queue.0.is_empty() {
-        return;
-    }
-
     let events = std::mem::take(&mut input_queue.0);
     for event in events {
         match event {
@@ -125,6 +123,15 @@ fn lifecycle_input(
             InputEvent::End => {
                 let max = max_selection(&lifecycle);
                 set_selection(&mut lifecycle, &mut navigation, max);
+            }
+            InputEvent::Tab if lifecycle.phase == LifecyclePhase::CreateCharacter => {
+                let next_tab = (lifecycle.creation_tab + 1) % 3;
+                select_creation_tab(&mut lifecycle, &mut navigation, next_tab);
+            }
+            InputEvent::SelectTab(tab)
+                if lifecycle.phase == LifecyclePhase::CreateCharacter && tab < 3 =>
+            {
+                select_creation_tab(&mut lifecycle, &mut navigation, tab);
             }
             InputEvent::Cancel => handle_cancel(&mut lifecycle, &mut navigation),
             InputEvent::Confirm => {
@@ -146,14 +153,17 @@ fn lifecycle_input(
         }
     }
 
-    if lifecycle.phase == LifecyclePhase::CreateCharacter && lifecycle.selected <= 2 {
-        if let Some((entity, _)) = fields
+    let selected_field = if lifecycle.phase == LifecyclePhase::CreateCharacter {
+        fields
             .iter()
             .find(|(_, field)| field.index == lifecycle.selected)
-        {
-            if input_focus.get() != Some(entity) {
-                input_focus.set(entity, FocusCause::Navigated);
-            }
+            .map(|(entity, _)| entity)
+    } else {
+        None
+    };
+    if let Some(entity) = selected_field {
+        if input_focus.get() != Some(entity) {
+            input_focus.set(entity, FocusCause::Navigated);
         }
     } else if input_focus
         .get()
@@ -271,6 +281,7 @@ fn on_lifecycle_field_focus_gained(
     };
 
     lifecycle.selected = field.index;
+    lifecycle.creation_tab = creation_tab_for_field(field.index);
     navigation.current_screen = Some(ScreenId::Lifecycle);
     navigation.selected = field.index;
 }
@@ -279,11 +290,44 @@ fn max_selection(lifecycle: &LifecycleState) -> usize {
     match lifecycle.phase {
         LifecyclePhase::Start => start_option_count(lifecycle).saturating_sub(1),
         LifecyclePhase::Load => lifecycle.save_files.len(),
-        LifecyclePhase::CreateCharacter => 3,
+        LifecyclePhase::CreateCharacter => creation_selection_bounds(lifecycle.creation_tab).1,
         LifecyclePhase::QuitConfirm => 1,
         LifecyclePhase::Death => 2,
         LifecyclePhase::Complete => 0,
     }
+}
+
+fn min_selection(lifecycle: &LifecycleState) -> usize {
+    match lifecycle.phase {
+        LifecyclePhase::CreateCharacter => creation_selection_bounds(lifecycle.creation_tab).0,
+        _ => 0,
+    }
+}
+
+fn creation_selection_bounds(tab: usize) -> (usize, usize) {
+    match tab {
+        0 => (0, 0),
+        1 => (1, 2),
+        _ => (3, 3),
+    }
+}
+
+fn creation_tab_for_field(index: usize) -> usize {
+    if index == 0 { 0 } else { 1 }
+}
+
+fn select_creation_tab(
+    lifecycle: &mut LifecycleState,
+    navigation: &mut NavigationState,
+    tab: usize,
+) {
+    if tab >= 3 {
+        return;
+    }
+    lifecycle.creation_tab = tab;
+    lifecycle.selected = creation_selection_bounds(tab).0;
+    navigation.selected = lifecycle.selected;
+    lifecycle.dirty = true;
 }
 
 fn set_selection(
@@ -291,7 +335,7 @@ fn set_selection(
     navigation: &mut NavigationState,
     selected: usize,
 ) {
-    lifecycle.selected = selected.min(max_selection(lifecycle));
+    lifecycle.selected = selected.clamp(min_selection(lifecycle), max_selection(lifecycle));
     navigation.selected = lifecycle.selected;
     if lifecycle.phase != LifecyclePhase::CreateCharacter {
         lifecycle.dirty = true;
@@ -303,8 +347,9 @@ fn move_selection(
     navigation: &mut NavigationState,
     direction: isize,
 ) {
+    let min = min_selection(lifecycle);
     let max = max_selection(lifecycle);
-    let selected = (lifecycle.selected as isize + direction).clamp(0, max as isize) as usize;
+    let selected = (lifecycle.selected as isize + direction).clamp(min as isize, max as isize) as usize;
     set_selection(lifecycle, navigation, selected);
 }
 
@@ -396,9 +441,11 @@ fn activate_selection(
                 }
             }
         }
-        LifecyclePhase::CreateCharacter => match lifecycle.selected {
-            0..=2 => lifecycle.selected = (lifecycle.selected + 1).min(3),
-            3 => lifecycle.create_character(),
+        LifecyclePhase::CreateCharacter => match (lifecycle.creation_tab, lifecycle.selected) {
+            (0, 0) => select_creation_tab(lifecycle, navigation, 1),
+            (1, 1) => set_selection(lifecycle, navigation, 2),
+            (1, 2) => select_creation_tab(lifecycle, navigation, 2),
+            (2, 3) => lifecycle.create_character(),
             _ => {}
         },
         LifecyclePhase::QuitConfirm => {
@@ -462,6 +509,7 @@ fn handle_cancel(lifecycle: &mut LifecycleState, navigation: &mut NavigationStat
         LifecyclePhase::Start => lifecycle.start_quit_confirmation(navigation, None),
         LifecyclePhase::Load | LifecyclePhase::CreateCharacter => {
             lifecycle.phase = LifecyclePhase::Start;
+            lifecycle.creation_tab = 0;
             lifecycle.selected = 0;
             lifecycle.message = None;
             navigation.return_screen = None;
@@ -517,6 +565,30 @@ fn start_options_index(lifecycle: &LifecycleState) -> usize {
 }
 
 impl LifecycleState {
+    fn effective_world_name(&self) -> &str {
+        if self.world_name.trim().is_empty() {
+            "The Ashen Crown"
+        } else {
+            self.world_name.trim()
+        }
+    }
+
+    fn effective_character_name(&self) -> &str {
+        if self.character_name.trim().is_empty() {
+            "Wanderer"
+        } else {
+            self.character_name.trim()
+        }
+    }
+
+    fn effective_character_title(&self) -> &str {
+        if self.character_title.trim().is_empty() {
+            "Ash Walker"
+        } else {
+            self.character_title.trim()
+        }
+    }
+
     pub(crate) fn mark_dirty(&mut self) {
         self.dirty = true;
     }
@@ -539,6 +611,7 @@ impl LifecycleState {
     pub(crate) fn start_new_game(&mut self, navigation: &mut NavigationState) {
         self.phase = LifecyclePhase::CreateCharacter;
         self.selected = 0;
+        self.creation_tab = 0;
         self.message = None;
         self.pending_state = None;
         navigation.return_screen = None;
@@ -600,21 +673,9 @@ impl LifecycleState {
     }
 
     fn create_character(&mut self) {
-        let world_name = if self.world_name.trim().is_empty() {
-            "The Ashen Crown"
-        } else {
-            self.world_name.trim()
-        };
-        let character_name = if self.character_name.trim().is_empty() {
-            "Wanderer"
-        } else {
-            self.character_name.trim()
-        };
-        let title = if self.character_title.trim().is_empty() {
-            "Ash Walker"
-        } else {
-            self.character_title.trim()
-        };
+        let world_name = self.effective_world_name();
+        let character_name = self.effective_character_name();
+        let title = self.effective_character_title();
         let mut state = create_new_state(
             world_name,
             WorldMode::New,
@@ -725,7 +786,17 @@ fn render(commands: &mut Commands, lifecycle: &LifecycleState) {
     } else {
         bevy_presentation::spawn_screen(commands, "THE EVER-UNFOLDING SAGA")
     };
-    let panel = bevy_presentation::spawn_panel(commands, root);
+    let panel = if lifecycle.phase == LifecyclePhase::CreateCharacter {
+        let panel = bevy_presentation::spawn_fixed_panel(commands, root);
+        commands.entity(panel).insert((
+            bevy_presentation::UiSurface,
+            BorderColor::all(bevy_presentation::THEME_BORDER),
+            BackgroundColor(bevy_presentation::THEME_SURFACE_STRONG),
+        ));
+        panel
+    } else {
+        bevy_presentation::spawn_panel(commands, root)
+    };
 
     match lifecycle.phase {
         LifecyclePhase::Start => render_start(commands, panel, lifecycle),
@@ -803,31 +874,85 @@ fn render_load(commands: &mut Commands, panel: Entity, lifecycle: &LifecycleStat
 }
 
 fn render_creation(commands: &mut Commands, panel: Entity, lifecycle: &LifecycleState) {
-    bevy_presentation::spawn_muted_label(
+    bevy_presentation::spawn_tab_strip(
         commands,
         panel,
-        "Enter the names below. Enter advances to the next field.",
+        &["World", "Character", "Start"],
+        lifecycle.creation_tab,
     );
-    let fields = [
-        ("World", &lifecycle.world_name),
-        ("Character", &lifecycle.character_name),
-        ("Title", &lifecycle.character_title),
-    ];
-    for (index, (label, value)) in fields.into_iter().enumerate() {
-        bevy_presentation::spawn_text_input_field(
-            commands,
-            panel,
-            index,
-            label,
-            value,
-            lifecycle.selected == index,
-        );
-    }
-    let button = bevy_presentation::spawn_action_button(commands, panel, 3, "▶", "Begin Life");
-    if lifecycle.selected == 3 {
-        commands
-            .entity(button)
-            .insert(bevy_presentation::UiSelected);
+
+    let content = bevy_presentation::spawn_scrollable_list(commands, panel);
+    match lifecycle.creation_tab {
+        0 => {
+            bevy_presentation::spawn_muted_label(
+                commands,
+                content,
+                "Name the world in which this story will unfold.",
+            );
+            bevy_presentation::spawn_text_input_field(
+                commands,
+                content,
+                0,
+                "World name",
+                &lifecycle.world_name,
+                lifecycle.selected == 0,
+            );
+        }
+        1 => {
+            bevy_presentation::spawn_muted_label(
+                commands,
+                content,
+                "Give your traveller a name and an initial title.",
+            );
+            bevy_presentation::spawn_text_input_field(
+                commands,
+                content,
+                1,
+                "Character name",
+                &lifecycle.character_name,
+                lifecycle.selected == 1,
+            );
+            bevy_presentation::spawn_text_input_field(
+                commands,
+                content,
+                2,
+                "Title",
+                &lifecycle.character_title,
+                lifecycle.selected == 2,
+            );
+        }
+        2 => {
+            bevy_presentation::spawn_label(commands, content, "WORLD");
+            bevy_presentation::spawn_label(commands, content, lifecycle.effective_world_name());
+            bevy_presentation::spawn_label(commands, content, "CHARACTER");
+            bevy_presentation::spawn_label(
+                commands,
+                content,
+                lifecycle.effective_character_name(),
+            );
+            bevy_presentation::spawn_muted_label(
+                commands,
+                content,
+                format!("Title: {}", lifecycle.effective_character_title()),
+            );
+            bevy_presentation::spawn_label(commands, content, "BACKGROUND");
+            bevy_presentation::spawn_muted_label(commands, content, "Not available yet.");
+            bevy_presentation::spawn_muted_label(
+                commands,
+                content,
+                "Data-driven character backgrounds and their starting circumstances are planned for a later character-creation update.",
+            );
+
+            let footer = bevy_presentation::spawn_option_footer(commands, panel);
+            let button =
+                bevy_presentation::spawn_action_button(commands, footer, 3, "▶", "Begin Life");
+            if lifecycle.selected == 3 {
+                commands
+                    .entity(button)
+                    .insert(bevy_presentation::UiSelected);
+            }
+        }
+        _ => {}
     }
 }
 
