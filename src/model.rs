@@ -7,6 +7,12 @@ use crate::spatial::{ExplorationSession, LocalMap};
 pub type EntityId = u64;
 const MAX_HISTORY_ENTRIES: usize = 500;
 
+pub(crate) fn is_internal_memory_entry(entry: &str) -> bool {
+    entry.starts_with("[authored anchor]")
+        || entry.starts_with("[generated relationship]")
+        || entry.starts_with("A generated faction shaped by")
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum WorldMode {
     New,
