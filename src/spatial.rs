@@ -495,7 +495,7 @@ pub fn ensure_spatial_entity_placements(
 ) {
     let mut entities = entities.to_vec();
     entities.sort_by_key(|(entity_id, kind)| {
-        (*entity_id, matches!(kind, SpatialEntityKind::Corpse) as u8)
+        (*entity_id, matches!(*kind, SpatialEntityKind::Corpse) as u8)
     });
 
     let reachable = reachable_walkable_tiles(map);
