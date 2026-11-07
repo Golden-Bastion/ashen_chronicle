@@ -71,10 +71,11 @@ fn conversation_does_not_offer_internal_metadata_as_a_remembered_event() {
     );
     npc.memory
         .push("[authored anchor] Mara operates at the old road.".to_string());
+    let npc_index = state.npcs.len();
     state.npcs.push(npc);
     state.character.attributes.insight = 2;
 
-    let view = build_conversation_view(&state, 0);
+    let view = build_conversation_view(&state, npc_index);
 
     assert_eq!(view.memory, None);
     assert!(!view.options.iter().any(|option| option == "Ask what they remember"));
