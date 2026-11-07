@@ -92,3 +92,19 @@ fn pause_action_order_keeps_options_before_quit() {
         ]
     ));
 }
+
+
+#[test]
+fn gameplay_dashboard_uses_exploration_as_the_main_activity_entry() {
+    let state = crate::model::create_new_state(
+        "Test World",
+        crate::model::WorldMode::New,
+        "Ash".to_string(),
+        "Wanderer".to_string(),
+    );
+    let actions = dashboard_actions(&state);
+
+    assert!(actions.contains(&GameplayAction::Explore));
+    assert!(!actions.contains(&GameplayAction::Talk));
+    assert!(!actions.contains(&GameplayAction::SearchRemains));
+}
