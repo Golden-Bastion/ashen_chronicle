@@ -651,9 +651,7 @@ fn tab_content_node() -> Node {
 }
 
 pub(crate) fn spawn_tab_content(commands: &mut Commands, parent: Entity) -> Entity {
-    let content = commands
-        .spawn((UiTabContent, tab_content_node()))
-        .id();
+    let content = commands.spawn((UiTabContent, tab_content_node())).id();
     commands.entity(parent).add_child(content);
     content
 }

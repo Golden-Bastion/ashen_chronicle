@@ -247,14 +247,7 @@ fn lifecycle_text_fields_do_not_request_automatic_input_focus() {
 
     fn setup(mut commands: Commands) {
         let parent = commands.spawn_empty().id();
-        let field = spawn_text_input_field(
-            &mut commands,
-            parent,
-            0,
-            "World name",
-            "A World",
-            true,
-        );
+        let field = spawn_text_input_field(&mut commands, parent, 0, "World name", "A World", true);
         commands.insert_resource(Fixture(field));
     }
 
@@ -266,7 +259,5 @@ fn lifecycle_text_fields_do_not_request_automatic_input_focus() {
     let field = world.resource::<Fixture>().0;
     assert!(world.get::<EditableText>(field).is_some());
     assert!(world.get::<LifecycleTextField>(field).is_some());
-    assert!(world
-        .get::<bevy::input_focus::AutoFocus>(field)
-        .is_none());
+    assert!(world.get::<bevy::input_focus::AutoFocus>(field).is_none());
 }

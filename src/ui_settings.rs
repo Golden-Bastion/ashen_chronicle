@@ -161,8 +161,8 @@ fn apply_ui_settings(
     }
 
     let viewport_min = window.width().min(window.height());
-    let apply_all = *last_settings != Some(*settings)
-        || (*last_viewport_min - viewport_min).abs() > 0.01;
+    let apply_all =
+        *last_settings != Some(*settings) || (*last_viewport_min - viewport_min).abs() > 0.01;
     let base_viewport_em = viewport_min * BASE_REM_VMIN_PERCENT;
     let target_em_size = base_viewport_em * target_ui_scale;
     let touch_scale = if cfg!(target_os = "android") {

@@ -227,7 +227,10 @@ fn applying_settings_updates_layout_typography_and_touch_targets() {
             < 0.01
     );
     assert_eq!(
-        world.get::<Node>(newly_added_touch_target).unwrap().min_height,
+        world
+            .get::<Node>(newly_added_touch_target)
+            .unwrap()
+            .min_height,
         Val::Px(resized_touch_size)
     );
 }

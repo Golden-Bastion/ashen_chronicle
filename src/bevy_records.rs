@@ -628,14 +628,7 @@ fn render_character_hub(
     let content = bevy_presentation::spawn_tab_content(commands, panel);
     commands.entity(content).insert(CharacterHubContent);
     render_character_hub_content(
-        commands,
-        content,
-        character,
-        inventory,
-        quests,
-        history,
-        tab,
-        selected,
+        commands, content, character, inventory, quests, history, tab, selected,
     );
 }
 

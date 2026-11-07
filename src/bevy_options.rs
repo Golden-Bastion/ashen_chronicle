@@ -582,11 +582,7 @@ fn render_if_active(
         if let Some(content) = options_content.iter().next() {
             bevy_presentation::clear_tab_content(&mut commands, content, &children);
             render_options_content(&mut commands, content, &options, &ui_settings);
-            bevy_presentation::update_tab_strip_selection(
-                &mut commands,
-                &tab_buttons,
-                options.tab,
-            );
+            bevy_presentation::update_tab_strip_selection(&mut commands, &tab_buttons, options.tab);
             options.dirty = false;
             return;
         }
