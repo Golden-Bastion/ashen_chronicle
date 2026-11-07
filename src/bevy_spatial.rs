@@ -229,7 +229,9 @@ pub(crate) fn enter(
         },
     });
     map_mark_discovered(state, position);
-    state.message = Some("The air grows still. Something waits among the ash.".to_string());
+    state.message = Some(
+        "Explore the area. Move close to people or objects to interact.".to_string(),
+    );
     state.dirty = true;
     navigation.return_screen = Some(ScreenId::Gameplay);
     navigation.current_screen = Some(ScreenId::SpatialExploration);
@@ -252,7 +254,7 @@ fn sync_map_interactable_placements(map: &mut LocalMap, game: &GameState, locati
         )
         .collect::<Vec<_>>();
     entities.sort_by_key(|(entity_id, kind)| {
-        (*entity_id, matches!(kind, SpatialEntityKind::Corpse) as u8)
+        (*entity_id, matches!(*kind, SpatialEntityKind::Corpse) as u8)
     });
     ensure_spatial_entity_placements(map, &entities);
 }
@@ -1169,9 +1171,6 @@ fn spawn_control(
     ));
     if matches!(action, SpatialAction::Interact) {
         entity.insert(SpatialInteractionPrompt);
-    }
-    if let SpatialAction::UseExit(target_location_id) = action {
-        entity.insert(SpatialExitPrompt { target_location_id });
     }
     let entity = entity.id();
     let text = commands
