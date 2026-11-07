@@ -318,7 +318,6 @@ fn map_and_session_round_trip_through_serde() {
     assert_eq!(restored, session);
 }
 
-
 #[test]
 fn spatial_entity_placements_are_stable_unique_and_backward_compatible() {
     let mut map = generate_local_map(82, "location.actor_test", LocalMapConfig::default());
@@ -337,8 +336,14 @@ fn spatial_entity_placements_are_stable_unique_and_backward_compatible() {
         assert!(map.is_walkable(placement.position));
         assert!(reachable_walkable_tiles(&map).contains(&placement.position));
         assert_ne!(placement.position, map.entry);
-        assert!(!map.points_of_interest.iter().any(|poi| poi.position == placement.position));
-        assert!(!map.exits.iter().any(|exit| exit.position == placement.position));
+        assert!(!map
+            .points_of_interest
+            .iter()
+            .any(|poi| poi.position == placement.position));
+        assert!(!map
+            .exits
+            .iter()
+            .any(|exit| exit.position == placement.position));
         assert!(!map.interactables[index + 1..]
             .iter()
             .any(|other| other.position == placement.position));

@@ -229,9 +229,8 @@ pub(crate) fn enter(
         },
     });
     map_mark_discovered(state, position);
-    state.message = Some(
-        "Explore the area. Move close to people or objects to interact.".to_string(),
-    );
+    state.message =
+        Some("Explore the area. Move close to people or objects to interact.".to_string());
     state.dirty = true;
     navigation.return_screen = Some(ScreenId::Gameplay);
     navigation.current_screen = Some(ScreenId::SpatialExploration);
@@ -247,9 +246,7 @@ fn sync_map_interactable_placements(map: &mut LocalMap, game: &GameState, locati
         .chain(
             game.corpses
                 .iter()
-                .filter(|corpse| {
-                    corpse.location_id == location_id && !corpse.inventory.is_empty()
-                })
+                .filter(|corpse| corpse.location_id == location_id && !corpse.inventory.is_empty())
                 .map(|corpse| (corpse.id, SpatialEntityKind::Corpse)),
         )
         .collect::<Vec<_>>();
@@ -380,7 +377,9 @@ fn spatial_input(
             continue;
         };
         match *action {
-            SpatialAction::Interact => interact_contextually(&mut state, &mut lifecycle, &mut navigation, &mut requests),
+            SpatialAction::Interact => {
+                interact_contextually(&mut state, &mut lifecycle, &mut navigation, &mut requests)
+            }
             SpatialAction::Exit => exit_spatial(&mut state, &mut navigation),
         }
     }
@@ -536,7 +535,8 @@ fn interact_contextually(
             use_map_exit(state, navigation, target_location_id);
         }
         None => {
-            state.message = Some("There is nothing within reach that can be approached.".to_string());
+            state.message =
+                Some("There is nothing within reach that can be approached.".to_string());
             state.dirty = true;
         }
     }
@@ -856,7 +856,12 @@ fn render_spatial_screen(
             sprite,
             Transform::from_xyz(
                 projected.x,
-                projected.y + if placement.kind == SpatialEntityKind::Npc { 11.0 } else { 5.0 },
+                projected.y
+                    + if placement.kind == SpatialEntityKind::Npc {
+                        11.0
+                    } else {
+                        5.0
+                    },
                 depth_for_position(grid_position) + PLAYER_DEPTH_OFFSET - 0.005,
             ),
         ));
@@ -1019,12 +1024,9 @@ fn render_spatial_screen(
     #[cfg(target_os = "android")]
     spawn_virtual_joystick(&mut commands, root);
 
-    let interaction_available = lifecycle
-        .session
-        .as_ref()
-        .is_some_and(|game_session| {
-            nearest_interaction_target(map, &game_session.state, session_position(&state)).is_some()
-        });
+    let interaction_available = lifecycle.session.as_ref().is_some_and(|game_session| {
+        nearest_interaction_target(map, &game_session.state, session_position(&state)).is_some()
+    });
     let interaction_display = if interaction_available {
         Display::Flex
     } else {
@@ -1268,7 +1270,6 @@ fn update_spatial_context_prompt(
     for mut text in &mut prompt_labels {
         *text = Text::new(label.clone());
     }
-
 }
 
 fn update_spatial_control_feedback(
@@ -1501,7 +1502,6 @@ fn interaction_prompt_label(
             .unwrap_or_else(|| "Use passage".to_string()),
     }
 }
-
 
 fn exit_distance_px(map: &LocalMap, position: Vec2, exit: &MapExit) -> f32 {
     let target = Vec2::new(

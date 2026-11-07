@@ -93,7 +93,6 @@ fn pause_action_order_keeps_options_before_quit() {
     ));
 }
 
-
 #[test]
 fn gameplay_dashboard_uses_exploration_as_the_main_activity_entry() {
     let state = crate::model::create_new_state(

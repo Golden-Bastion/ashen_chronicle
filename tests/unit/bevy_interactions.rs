@@ -10,7 +10,6 @@ fn interaction_screen_set_matches_navigation_targets() {
     assert!(!is_interaction_screen(Some(ScreenId::SpatialExploration)));
 }
 
-
 #[test]
 fn spatial_interaction_overlay_keeps_the_exploration_screen_active() {
     let mut state = BevyInteractionState::default();

@@ -489,10 +489,7 @@ fn reachable_walkable_tiles(map: &LocalMap) -> HashSet<GridPosition> {
 /// persisted on the local map. Candidate selection is stable for a map seed
 /// and entity ID, and avoids terrain, props, exits, points of interest, and
 /// other placed entities. Only cells reachable from the entry are considered.
-pub fn ensure_spatial_entity_placements(
-    map: &mut LocalMap,
-    entities: &[(u64, SpatialEntityKind)],
-) {
+pub fn ensure_spatial_entity_placements(map: &mut LocalMap, entities: &[(u64, SpatialEntityKind)]) {
     let mut entities = entities.to_vec();
     entities.sort_by_key(|(entity_id, kind)| {
         (*entity_id, matches!(*kind, SpatialEntityKind::Corpse) as u8)

@@ -6,10 +6,10 @@
 use bevy::prelude::*;
 
 use crate::bevy_lifecycle::{LifecyclePhase, LifecycleState};
-use crate::bevy_spatial::{SpatialInteractionRequest, SpatialSceneRoot};
 use crate::bevy_presentation::{
     self, BevyScreenRoot, GameplayInputQueue, NavigationState, ScreenId,
 };
+use crate::bevy_spatial::{SpatialInteractionRequest, SpatialSceneRoot};
 use crate::game::{interactions, legacy};
 use crate::input::InputEvent;
 use crate::model::EntityId;
@@ -252,8 +252,8 @@ fn interaction_input(
     mut navigation: ResMut<NavigationState>,
     mut input_queue: ResMut<GameplayInputQueue>,
 ) {
-    let spatial_overlay = navigation.current_screen == Some(ScreenId::SpatialExploration)
-        && state.spatial_overlay;
+    let spatial_overlay =
+        navigation.current_screen == Some(ScreenId::SpatialExploration) && state.spatial_overlay;
     if lifecycle.phase != LifecyclePhase::Complete
         || (!spatial_overlay && !is_interaction_screen(navigation.current_screen))
         || input_queue.0.is_empty()
@@ -277,7 +277,9 @@ fn interaction_input(
             InputEvent::Confirm if spatial_overlay => {
                 activate_spatial_overlay(&mut lifecycle, &mut state, &mut navigation)
             }
-            InputEvent::Cancel if spatial_overlay => close_spatial_overlay(&mut state, &mut navigation),
+            InputEvent::Cancel if spatial_overlay => {
+                close_spatial_overlay(&mut state, &mut navigation)
+            }
             InputEvent::Confirm => activate(&mut lifecycle, &mut state, &mut navigation),
             InputEvent::Cancel => cancel(&mut state, &mut navigation),
             _ => {}
@@ -285,10 +287,7 @@ fn interaction_input(
     }
 }
 
-fn close_spatial_overlay(
-    state: &mut BevyInteractionState,
-    navigation: &mut NavigationState,
-) {
+fn close_spatial_overlay(state: &mut BevyInteractionState, navigation: &mut NavigationState) {
     state.spatial_overlay = false;
     state.selected = 0;
     state.npc_id = None;
@@ -526,12 +525,7 @@ fn render_if_active(
                 state.dirty = false;
                 return;
             };
-            render_spatial_interaction_overlay(
-                &mut commands,
-                parent,
-                &session.state,
-                &state,
-            );
+            render_spatial_interaction_overlay(&mut commands, parent, &session.state, &state);
         }
         state.dirty = false;
         return;
@@ -619,7 +613,9 @@ fn render_spatial_interaction_overlay(
             let view = state
                 .npc_id
                 .and_then(|npc_id| interactions::npc_index_by_id(game, npc_id))
-                .and_then(|npc_index| interactions::build_conversation_view_for_bevy(game, npc_index));
+                .and_then(|npc_index| {
+                    interactions::build_conversation_view_for_bevy(game, npc_index)
+                });
             render_conversation_content(
                 commands,
                 content,
@@ -650,8 +646,11 @@ fn render_spatial_interaction_overlay(
                 content,
                 "There is no conversation to continue.",
             );
-            let button = bevy_presentation::spawn_action_button(commands, footer, 0, "back", "Close");
-            commands.entity(button).insert(bevy_presentation::UiSelected);
+            let button =
+                bevy_presentation::spawn_action_button(commands, footer, 0, "back", "Close");
+            commands
+                .entity(button)
+                .insert(bevy_presentation::UiSelected);
         }
     }
 }
@@ -671,7 +670,9 @@ fn render_conversation_content(
             "That person can no longer be found.",
         );
         let button = bevy_presentation::spawn_action_button(commands, footer, 0, "back", "Close");
-        commands.entity(button).insert(bevy_presentation::UiSelected);
+        commands
+            .entity(button)
+            .insert(bevy_presentation::UiSelected);
         return;
     };
 
@@ -690,8 +691,11 @@ fn render_conversation_content(
         for line in message.lines() {
             bevy_presentation::spawn_muted_label(commands, parent, line);
         }
-        let button = bevy_presentation::spawn_action_button(commands, footer, 0, "continue", "Continue");
-        commands.entity(button).insert(bevy_presentation::UiSelected);
+        let button =
+            bevy_presentation::spawn_action_button(commands, footer, 0, "continue", "Continue");
+        commands
+            .entity(button)
+            .insert(bevy_presentation::UiSelected);
     } else if !view.available {
         bevy_presentation::spawn_muted_label(
             commands,
@@ -701,18 +705,26 @@ fn render_conversation_content(
                 .unwrap_or("They are unavailable right now."),
         );
         let button = bevy_presentation::spawn_action_button(commands, footer, 0, "back", "Leave");
-        commands.entity(button).insert(bevy_presentation::UiSelected);
+        commands
+            .entity(button)
+            .insert(bevy_presentation::UiSelected);
     } else {
         for (index, option) in view.options.iter().enumerate() {
-            let button = bevy_presentation::spawn_action_button(commands, footer, index, "choice", option);
+            let button =
+                bevy_presentation::spawn_action_button(commands, footer, index, "choice", option);
             if index == selected {
-                commands.entity(button).insert(bevy_presentation::UiSelected);
+                commands
+                    .entity(button)
+                    .insert(bevy_presentation::UiSelected);
             }
         }
         let back_index = view.options.len();
-        let button = bevy_presentation::spawn_action_button(commands, footer, back_index, "back", "Leave");
+        let button =
+            bevy_presentation::spawn_action_button(commands, footer, back_index, "back", "Leave");
         if selected == back_index {
-            commands.entity(button).insert(bevy_presentation::UiSelected);
+            commands
+                .entity(button)
+                .insert(bevy_presentation::UiSelected);
         }
     }
 }
@@ -734,14 +746,20 @@ fn render_spatial_remains_content(
     let Some(remains) = remains else {
         bevy_presentation::spawn_muted_label(commands, parent, "These remains are no longer here.");
         let button = bevy_presentation::spawn_action_button(commands, footer, 0, "back", "Leave");
-        commands.entity(button).insert(bevy_presentation::UiSelected);
+        commands
+            .entity(button)
+            .insert(bevy_presentation::UiSelected);
         return;
     };
 
     bevy_presentation::spawn_label(commands, parent, remains.label.clone());
     bevy_presentation::spawn_muted_label(commands, parent, format!("At {}", view.location_name));
     if remains.scavenged {
-        bevy_presentation::spawn_muted_label(commands, parent, "Someone has already picked through these remains.");
+        bevy_presentation::spawn_muted_label(
+            commands,
+            parent,
+            "Someone has already picked through these remains.",
+        );
     }
     for item in &remains.items {
         bevy_presentation::spawn_label(commands, parent, item.name.clone());
@@ -751,12 +769,23 @@ fn render_spatial_remains_content(
     }
     if let Some(message) = message {
         bevy_presentation::spawn_muted_label(commands, parent, message);
-        let button = bevy_presentation::spawn_action_button(commands, footer, 0, "continue", "Continue");
-        commands.entity(button).insert(bevy_presentation::UiSelected);
+        let button =
+            bevy_presentation::spawn_action_button(commands, footer, 0, "continue", "Continue");
+        commands
+            .entity(button)
+            .insert(bevy_presentation::UiSelected);
     } else {
-        let search = bevy_presentation::spawn_action_button(commands, footer, 0, "remains", "Search remains");
+        let search = bevy_presentation::spawn_action_button(
+            commands,
+            footer,
+            0,
+            "remains",
+            "Search remains",
+        );
         if selected == 0 {
-            commands.entity(search).insert(bevy_presentation::UiSelected);
+            commands
+                .entity(search)
+                .insert(bevy_presentation::UiSelected);
         }
         let leave = bevy_presentation::spawn_action_button(commands, footer, 1, "back", "Leave");
         if selected == 1 {
@@ -773,14 +802,20 @@ fn render_remains_result_content(
 ) {
     let Some(result) = result else {
         bevy_presentation::spawn_muted_label(commands, parent, "Nothing was recovered.");
-        let button = bevy_presentation::spawn_action_button(commands, footer, 0, "continue", "Continue");
-        commands.entity(button).insert(bevy_presentation::UiSelected);
+        let button =
+            bevy_presentation::spawn_action_button(commands, footer, 0, "continue", "Continue");
+        commands
+            .entity(button)
+            .insert(bevy_presentation::UiSelected);
         return;
     };
     bevy_presentation::spawn_label(
         commands,
         parent,
-        format!("{} the {} at {}", result.former_name, result.former_title, result.location_name),
+        format!(
+            "{} the {} at {}",
+            result.former_name, result.former_title, result.location_name
+        ),
     );
     for item in &result.items {
         bevy_presentation::spawn_label(commands, parent, format!("Recovered: {}", item.name));
@@ -795,8 +830,11 @@ fn render_remains_result_content(
     for note in &result.notes {
         bevy_presentation::spawn_muted_label(commands, parent, note.clone());
     }
-    let button = bevy_presentation::spawn_action_button(commands, footer, 0, "continue", "Continue");
-    commands.entity(button).insert(bevy_presentation::UiSelected);
+    let button =
+        bevy_presentation::spawn_action_button(commands, footer, 0, "continue", "Continue");
+    commands
+        .entity(button)
+        .insert(bevy_presentation::UiSelected);
 }
 
 fn render_talk(commands: &mut Commands, view: &TalkView, selected: usize) {
