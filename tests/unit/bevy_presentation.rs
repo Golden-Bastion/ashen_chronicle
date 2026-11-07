@@ -226,3 +226,47 @@ fn shared_tab_strip_marks_only_the_selected_tab() {
         assert_eq!(world.get::<UiSelected>(entity).is_some(), index == 1);
     }
 }
+
+#[test]
+fn tab_content_host_keeps_a_stable_flexible_layout() {
+    let node = tab_content_node();
+
+    assert_eq!(node.width, percent(100));
+    assert_eq!(node.min_width, px(0));
+    assert_eq!(node.min_height, px(0));
+    assert_eq!(node.flex_grow, 1.0);
+    assert_eq!(node.flex_shrink, 1.0);
+    assert_eq!(node.flex_direction, FlexDirection::Column);
+    assert_eq!(node.overflow, Overflow::clip());
+}
+
+#[test]
+fn lifecycle_text_fields_do_not_request_automatic_input_focus() {
+    #[derive(Resource)]
+    struct Fixture(Entity);
+
+    fn setup(mut commands: Commands) {
+        let parent = commands.spawn_empty().id();
+        let field = spawn_text_input_field(
+            &mut commands,
+            parent,
+            0,
+            "World name",
+            "A World",
+            true,
+        );
+        commands.insert_resource(Fixture(field));
+    }
+
+    let mut world = World::new();
+    let mut schedule = Schedule::default();
+    schedule.add_systems(setup);
+    schedule.run(&mut world);
+
+    let field = world.resource::<Fixture>().0;
+    assert!(world.get::<EditableText>(field).is_some());
+    assert!(world.get::<LifecycleTextField>(field).is_some());
+    assert!(world
+        .get::<bevy::input_focus::AutoFocus>(field)
+        .is_none());
+}
