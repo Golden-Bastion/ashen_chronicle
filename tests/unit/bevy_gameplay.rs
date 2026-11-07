@@ -104,7 +104,12 @@ fn gameplay_dashboard_uses_exploration_as_the_main_activity_entry() {
     );
     let actions = dashboard_actions(&state);
 
-    assert!(actions.contains(&GameplayAction::Explore));
-    assert!(!actions.contains(&GameplayAction::Talk));
-    assert!(!actions.contains(&GameplayAction::SearchRemains));
+    assert_eq!(
+        actions,
+        vec![
+            GameplayAction::Travel,
+            GameplayAction::Meditate,
+            GameplayAction::Explore,
+        ]
+    );
 }
