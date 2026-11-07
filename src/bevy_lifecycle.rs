@@ -769,6 +769,7 @@ impl LifecycleState {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn render_if_dirty(
     mut commands: Commands,
     mut lifecycle: ResMut<LifecycleState>,
