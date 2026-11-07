@@ -33,8 +33,9 @@ fn conversation_memory_skips_internal_metadata_and_uses_the_latest_player_memory
         "Ash".to_string(),
         "Wanderer".to_string(),
     );
+    let npc_id = state.world.allocate_id();
     let mut npc = crate::model::Npc::new(
-        state.world.allocate_id(),
+        npc_id,
         "Mara",
         "Keeper",
         state.character.location_id,
@@ -43,10 +44,11 @@ fn conversation_memory_skips_internal_metadata_and_uses_the_latest_player_memory
     npc.memory.push("The road remembers.".to_string());
     npc.memory
         .push("[authored anchor] Mara operates at the old road.".to_string());
+    let npc_index = state.npcs.len();
     state.npcs.push(npc);
     state.character.attributes.insight = 2;
 
-    let view = build_conversation_view(&state, 0);
+    let view = build_conversation_view(&state, npc_index);
 
     assert_eq!(view.memory.as_deref(), Some("The road remembers."));
     assert!(view.options.iter().any(|option| option == "Ask what they remember"));
