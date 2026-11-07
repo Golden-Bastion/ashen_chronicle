@@ -604,6 +604,7 @@ fn render_spatial_interaction_overlay(
         .id();
     commands.entity(parent).add_child(overlay);
     let content = bevy_presentation::spawn_scrollable_list(commands, overlay);
+    let footer = bevy_presentation::spawn_option_footer(commands, overlay);
 
     match state.screen {
         InteractionScreen::Conversation => {
@@ -614,6 +615,7 @@ fn render_spatial_interaction_overlay(
             render_conversation_content(
                 commands,
                 content,
+                footer,
                 view.as_ref(),
                 state.selected,
                 state.message.as_deref(),
@@ -624,6 +626,7 @@ fn render_spatial_interaction_overlay(
             render_spatial_remains_content(
                 commands,
                 content,
+                footer,
                 &view,
                 state.corpse_id,
                 state.selected,
@@ -631,7 +634,7 @@ fn render_spatial_interaction_overlay(
             );
         }
         InteractionScreen::RemainsResult => {
-            render_remains_result_content(commands, content, state.result.as_ref());
+            render_remains_result_content(commands, content, footer, state.result.as_ref());
         }
         InteractionScreen::Talk => {
             bevy_presentation::spawn_muted_label(
@@ -639,6 +642,8 @@ fn render_spatial_interaction_overlay(
                 content,
                 "There is no conversation to continue.",
             );
+            let button = bevy_presentation::spawn_action_button(commands, footer, 0, "back", "Close");
+            commands.entity(button).insert(bevy_presentation::UiSelected);
         }
     }
 }
@@ -646,6 +651,7 @@ fn render_spatial_interaction_overlay(
 fn render_conversation_content(
     commands: &mut Commands,
     parent: Entity,
+    footer: Entity,
     view: Option<&ConversationView>,
     selected: usize,
     message: Option<&str>,
@@ -656,7 +662,6 @@ fn render_conversation_content(
             parent,
             "That person can no longer be found.",
         );
-        let footer = bevy_presentation::spawn_option_footer(commands, parent);
         let button = bevy_presentation::spawn_action_button(commands, footer, 0, "back", "Close");
         commands.entity(button).insert(bevy_presentation::UiSelected);
         return;
@@ -673,7 +678,6 @@ fn render_conversation_content(
         bevy_presentation::spawn_muted_label(commands, parent, format!("Memory: {memory}"));
     }
 
-    let footer = bevy_presentation::spawn_option_footer(commands, parent);
     if !view.available {
         bevy_presentation::spawn_muted_label(
             commands,
@@ -708,6 +712,7 @@ fn render_conversation_content(
 fn render_spatial_remains_content(
     commands: &mut Commands,
     parent: Entity,
+    footer: Entity,
     view: &RemainsView,
     corpse_id: Option<EntityId>,
     selected: usize,
@@ -716,7 +721,6 @@ fn render_spatial_remains_content(
     let remains = corpse_id.and_then(|id| view.remains.iter().find(|remains| remains.id == id));
     let Some(remains) = remains else {
         bevy_presentation::spawn_muted_label(commands, parent, "These remains are no longer here.");
-        let footer = bevy_presentation::spawn_option_footer(commands, parent);
         let button = bevy_presentation::spawn_action_button(commands, footer, 0, "back", "Leave");
         commands.entity(button).insert(bevy_presentation::UiSelected);
         return;
@@ -737,7 +741,6 @@ fn render_spatial_remains_content(
         bevy_presentation::spawn_muted_label(commands, parent, message);
     }
 
-    let footer = bevy_presentation::spawn_option_footer(commands, parent);
     let search = bevy_presentation::spawn_action_button(commands, footer, 0, "remains", "Search remains");
     if selected == 0 {
         commands.entity(search).insert(bevy_presentation::UiSelected);
@@ -751,11 +754,11 @@ fn render_spatial_remains_content(
 fn render_remains_result_content(
     commands: &mut Commands,
     parent: Entity,
+    footer: Entity,
     result: Option<&RemainsResultView>,
 ) {
     let Some(result) = result else {
         bevy_presentation::spawn_muted_label(commands, parent, "Nothing was recovered.");
-        let footer = bevy_presentation::spawn_option_footer(commands, parent);
         let button = bevy_presentation::spawn_action_button(commands, footer, 0, "continue", "Continue");
         commands.entity(button).insert(bevy_presentation::UiSelected);
         return;
@@ -778,7 +781,6 @@ fn render_remains_result_content(
     for note in &result.notes {
         bevy_presentation::spawn_muted_label(commands, parent, note.clone());
     }
-    let footer = bevy_presentation::spawn_option_footer(commands, parent);
     let button = bevy_presentation::spawn_action_button(commands, footer, 0, "continue", "Continue");
     commands.entity(button).insert(bevy_presentation::UiSelected);
 }
