@@ -180,6 +180,11 @@ pub(crate) fn enter(
     if map.exits.is_empty() {
         configure_map_exits(&mut map, &location.exits);
     }
+    if !location.dangerous {
+        let prototype_poi_id = format!("{location_id}.poi.initial_discovery");
+        map.points_of_interest
+            .retain(|poi| poi.id != prototype_poi_id);
+    }
     sync_map_interactable_placements(&mut map, game, location.id);
     state.maps.insert(location_id.clone(), map);
     let map = state.maps.get(&location_id).expect("map was just inserted");
