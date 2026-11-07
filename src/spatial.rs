@@ -4,7 +4,7 @@
 //! can be tested independently from presentation.
 
 use serde::{Deserialize, Serialize};
-use std::collections::VecDeque;
+use std::collections::{HashSet, VecDeque};
 
 use crate::rng::DeterministicRng;
 
@@ -458,10 +458,37 @@ fn populate_generated_props(map: &mut LocalMap, rng: &mut DeterministicRng) {
     }
 }
 
+fn reachable_walkable_tiles(map: &LocalMap) -> HashSet<GridPosition> {
+    let mut reachable = HashSet::new();
+    if !map.is_walkable(map.entry) {
+        return reachable;
+    }
+
+    let mut pending = VecDeque::from([map.entry]);
+    reachable.insert(map.entry);
+    while let Some(position) = pending.pop_front() {
+        for (dx, dy) in [(0_i32, -1_i32), (1, 0), (0, 1), (-1, 0)] {
+            let x = i32::from(position.x) + dx;
+            let y = i32::from(position.y) + dy;
+            if x < 0 || y < 0 || x >= i32::from(map.width) || y >= i32::from(map.height) {
+                continue;
+            }
+            let neighbour = GridPosition {
+                x: x as u16,
+                y: y as u16,
+            };
+            if map.is_walkable(neighbour) && reachable.insert(neighbour) {
+                pending.push_back(neighbour);
+            }
+        }
+    }
+    reachable
+}
+
 /// Add missing NPC/corpse placements without moving any placement already
 /// persisted on the local map. Candidate selection is stable for a map seed
 /// and entity ID, and avoids terrain, props, exits, points of interest, and
-/// other placed entities.
+/// other placed entities. Only cells reachable from the entry are considered.
 pub fn ensure_spatial_entity_placements(
     map: &mut LocalMap,
     entities: &[(u64, SpatialEntityKind)],
@@ -471,6 +498,7 @@ pub fn ensure_spatial_entity_placements(
         (*entity_id, matches!(kind, SpatialEntityKind::Corpse) as u8)
     });
 
+    let reachable = reachable_walkable_tiles(map);
     for (entity_id, kind) in entities {
         if map
             .interactables
@@ -482,7 +510,7 @@ pub fn ensure_spatial_entity_placements(
 
         let candidates = (1..map.height.saturating_sub(1))
             .flat_map(|y| (1..map.width.saturating_sub(1)).map(move |x| GridPosition { x, y }))
-            .filter(|position| map.is_walkable(*position))
+            .filter(|position| reachable.contains(position))
             .filter(|position| {
                 position.x.abs_diff(map.entry.x) + position.y.abs_diff(map.entry.y) >= 2
             })
