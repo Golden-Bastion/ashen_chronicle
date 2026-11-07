@@ -105,11 +105,11 @@ fn gameplay_dashboard_uses_exploration_as_the_main_activity_entry() {
     let actions = dashboard_actions(&state);
 
     assert_eq!(
-        actions,
-        vec![
-            GameplayAction::Travel,
-            GameplayAction::Meditate,
-            GameplayAction::Explore,
-        ]
+        &actions[..PRIMARY_GAMEPLAY_ACTIONS.len()],
+        &PRIMARY_GAMEPLAY_ACTIONS
+    );
+    assert_eq!(
+        actions.len(),
+        PRIMARY_GAMEPLAY_ACTIONS.len() + usize::from(state.threat.active)
     );
 }
