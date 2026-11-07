@@ -1,8 +1,8 @@
-//! First playable local spatial-exploration view for dangerous locations.
+//! World-first local spatial exploration and contextual interaction presentation.
 //!
 //! The renderer-neutral map model and character session remain separate from
-//! Bevy presentation. Persistent maps are synchronized with world state, while
-//! the character's continuous position is synchronized with character state.
+//! Bevy presentation. Persistent maps and actor placements are synchronized with
+//! world state, while the character's continuous position belongs to the session.
 
 use std::collections::HashMap;
 
@@ -99,11 +99,6 @@ pub(crate) enum SpatialInteractionRequest {
     SearchRemains(EntityId),
 }
 
-#[derive(Component)]
-struct SpatialExitPrompt {
-    target_location_id: EntityId,
-}
-
 #[derive(Resource, Default)]
 struct SpatialRenderAssets {
     tile_images: [Option<Handle<Image>>; 4],
@@ -111,6 +106,8 @@ struct SpatialRenderAssets {
     player_image: Option<Handle<Image>>,
     passage_image: Option<Handle<Image>>,
     poi_image: Option<Handle<Image>>,
+    npc_image: Option<Handle<Image>>,
+    corpse_image: Option<Handle<Image>>,
     prop_images: [Option<Handle<Image>>; 2],
 }
 
@@ -118,7 +115,6 @@ struct SpatialRenderAssets {
 enum SpatialAction {
     Interact,
     Exit,
-    UseExit(EntityId),
 }
 
 #[derive(Resource, Default)]
@@ -270,6 +266,8 @@ fn setup_spatial_render_assets(mut commands: Commands, mut images: ResMut<Assets
     let player_image = load_spatial_image(&mut images, "spatial/player_ash_warden.png");
     let passage_image = load_spatial_image(&mut images, "spatial/passage.png");
     let poi_image = load_spatial_image(&mut images, "icons/ui/investigate.png");
+    let npc_image = load_spatial_image(&mut images, "icons/ui/character.png");
+    let corpse_image = load_spatial_image(&mut images, "icons/ui/remains.png");
     let prop_images = [
         load_spatial_image(&mut images, "spatial/prop_pillar.png"),
         load_spatial_image(&mut images, "spatial/prop_table.png"),
@@ -281,6 +279,8 @@ fn setup_spatial_render_assets(mut commands: Commands, mut images: ResMut<Assets
         player_image,
         passage_image,
         poi_image,
+        npc_image,
+        corpse_image,
         prop_images,
     });
 }
@@ -378,9 +378,6 @@ fn spatial_input(
         match *action {
             SpatialAction::Interact => interact_contextually(&mut state, &mut lifecycle, &mut navigation, &mut requests),
             SpatialAction::Exit => exit_spatial(&mut state, &mut navigation),
-            SpatialAction::UseExit(target_location_id) => {
-                use_map_exit(&mut state, &mut navigation, target_location_id);
-            }
         }
     }
 
@@ -822,7 +819,11 @@ fn render_spatial_screen(
         if !exists {
             continue;
         }
-        let Some(image) = assets.poi_image.clone() else {
+        let image = match placement.kind {
+            SpatialEntityKind::Npc => assets.npc_image.clone(),
+            SpatialEntityKind::Corpse => assets.corpse_image.clone(),
+        };
+        let Some(image) = image else {
             continue;
         };
         let grid_position = Vec2::new(
@@ -1008,7 +1009,13 @@ fn render_spatial_screen(
     #[cfg(target_os = "android")]
     spawn_virtual_joystick(&mut commands, root);
 
-    let interaction_display = if poi_interaction_available(map, session_position(&state)) {
+    let interaction_available = lifecycle
+        .session
+        .as_ref()
+        .is_some_and(|game_session| {
+            nearest_interaction_target(map, &game_session.state, session_position(&state)).is_some()
+        });
+    let interaction_display = if interaction_available {
         Display::Flex
     } else {
         Display::None
@@ -1020,26 +1027,6 @@ fn render_spatial_screen(
         SpatialAction::Interact,
         interaction_display,
     );
-    for exit in &map.exits {
-        let destination_name = lifecycle
-            .session
-            .as_ref()
-            .and_then(|game_session| {
-                game_session
-                    .state
-                    .world
-                    .location_by_id(exit.target_location_id)
-            })
-            .map(|location| location.name.clone())
-            .unwrap_or_else(|| "connected location".to_string());
-        spawn_control(
-            &mut commands,
-            footer,
-            format!("Passage to {destination_name}"),
-            SpatialAction::UseExit(exit.target_location_id),
-            Display::None,
-        );
-    }
     state.dirty = false;
 }
 
@@ -1242,7 +1229,6 @@ fn update_spatial_context_prompt(
     lifecycle: Res<LifecycleState>,
     mut poi_prompts: Query<&mut Node, With<SpatialInteractionPrompt>>,
     mut prompt_labels: Query<&mut Text, With<SpatialPromptLabel>>,
-    mut exit_prompts: Query<(&SpatialExitPrompt, &mut Node), Without<SpatialInteractionPrompt>>,
 ) {
     if lifecycle.phase != LifecyclePhase::Complete
         || navigation.current_screen != Some(ScreenId::SpatialExploration)
@@ -1276,9 +1262,6 @@ fn update_spatial_context_prompt(
         *text = Text::new(label.clone());
     }
 
-    for (_, mut node) in &mut exit_prompts {
-        node.display = Display::None;
-    }
 }
 
 fn update_spatial_control_feedback(
@@ -1512,16 +1495,6 @@ fn interaction_prompt_label(
     }
 }
 
-fn nearest_available_exit(map: &LocalMap, position: Vec2) -> Option<&MapExit> {
-    map.exits
-        .iter()
-        .filter(|exit| exit_interaction_available(map, position, exit))
-        .min_by(|left, right| {
-            exit_distance_px(map, position, left)
-                .partial_cmp(&exit_distance_px(map, position, right))
-                .unwrap_or(std::cmp::Ordering::Equal)
-        })
-}
 
 fn exit_distance_px(map: &LocalMap, position: Vec2, exit: &MapExit) -> f32 {
     let target = Vec2::new(
