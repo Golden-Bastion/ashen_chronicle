@@ -104,7 +104,7 @@ fn read_spatial_requests(
 fn is_interaction_screen(screen: Option<ScreenId>) -> bool {
     matches!(
         screen,
-        Some(ScreenId::Talk | ScreenId::Conversation | ScreenId::Remains | ScreenId::RemainsResult)
+        Some(ScreenId::Talk | ScreenId::Conversation | ScreenId::RemainsResult)
     )
 }
 
@@ -134,7 +134,6 @@ fn sync_screen(
     let target = match screen {
         ScreenId::Talk => InteractionScreen::Talk,
         ScreenId::Conversation => InteractionScreen::Conversation,
-        ScreenId::Remains => InteractionScreen::Remains,
         ScreenId::RemainsResult => InteractionScreen::RemainsResult,
         _ => return,
     };
