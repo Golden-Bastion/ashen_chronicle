@@ -633,6 +633,7 @@ fn render_character_hub(
     );
 }
 
+#[allow(clippy::too_many_arguments)]
 fn render_character_hub_content(
     commands: &mut Commands,
     content: Entity,
