@@ -11,7 +11,7 @@ use crate::bevy_lifecycle::{LifecyclePhase, LifecycleState};
 use crate::bevy_presentation::{
     self, BevyScreenRoot, GameplayInputQueue, NavigationState, ScreenId,
 };
-use crate::game::{actions, navigation};
+use crate::game::{actions, menu, navigation};
 use crate::input::InputEvent;
 use crate::presentation::{ConditionView, NavigationView, WorldView};
 
@@ -996,7 +996,10 @@ fn gameplay_action_visuals(action: GameplayAction) -> (&'static str, &'static st
 
 fn dashboard_actions(state: &crate::model::GameState) -> Vec<GameplayAction> {
     let mut actions = PRIMARY_GAMEPLAY_ACTIONS.to_vec();
-    if state.threat.active {
+    if menu::build_main_menu(state)
+        .iter()
+        .any(|entry| matches!(entry.action, menu::GameAction::InvestigateThreat))
+    {
         actions.push(GameplayAction::Investigate);
     }
     actions
