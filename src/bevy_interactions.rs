@@ -512,18 +512,22 @@ fn render_if_active(
             commands.entity(root).despawn();
         }
         if state.spatial_overlay {
-            if let Some(parent) = spatial_roots.iter().next() {
-                let Some(session) = lifecycle.session.as_ref() else {
-                    state.dirty = false;
-                    return;
-                };
-                render_spatial_interaction_overlay(
-                    &mut commands,
-                    parent,
-                    &session.state,
-                    &state,
-                );
-            }
+            let Some(parent) = spatial_roots.iter().next() else {
+                // The spatial scene may be entering in this frame. Keep the
+                // request dirty so the overlay is attached once its root exists.
+                return;
+            };
+            let Some(session) = lifecycle.session.as_ref() else {
+                state.spatial_overlay = false;
+                state.dirty = false;
+                return;
+            };
+            render_spatial_interaction_overlay(
+                &mut commands,
+                parent,
+                &session.state,
+                &state,
+            );
         }
         state.dirty = false;
         return;
