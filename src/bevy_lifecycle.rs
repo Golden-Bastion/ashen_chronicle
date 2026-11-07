@@ -161,14 +161,14 @@ fn lifecycle_input(
                     input_focus.clear();
                     if let Some(exit) = activate_selection(&mut lifecycle, &mut navigation) {
                         if exit {
-                        #[cfg(target_os = "android")]
-                        {
-                            request_android_game_exit();
-                        }
-                        #[cfg(not(target_os = "android"))]
-                        {
-                            commands.write_message(AppExit::Success);
-                        }
+                            #[cfg(target_os = "android")]
+                            {
+                                request_android_game_exit();
+                            }
+                            #[cfg(not(target_os = "android"))]
+                            {
+                                commands.write_message(AppExit::Success);
+                            }
                             return;
                         }
                     }
