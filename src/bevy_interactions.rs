@@ -582,7 +582,6 @@ fn render_spatial_interaction_overlay(
     let overlay = commands
         .spawn((
             SpatialInteractionOverlayRoot,
-            bevy_presentation::TouchScrollablePanel,
             Node {
                 position_type: PositionType::Absolute,
                 right: bevy::ui::Val::Px(14.0),
