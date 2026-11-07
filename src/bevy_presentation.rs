@@ -9,7 +9,7 @@ use bevy::input::mouse::MouseWheel;
 use bevy::input::ButtonState;
 use bevy::input_focus::{
     tab_navigation::{TabGroup, TabIndex},
-    AutoFocus, FocusCause, InputFocus,
+    FocusCause, InputFocus,
 };
 use bevy::picking::hover::Hovered;
 use bevy::prelude::*;
@@ -99,6 +99,9 @@ pub(crate) enum UiTouchTargetShape {
 pub(crate) struct UiTabButton {
     pub(crate) index: usize,
 }
+
+#[derive(Component)]
+pub(crate) struct UiTabContent;
 
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct UiHealthGauge {
@@ -631,6 +634,41 @@ fn scrollable_list_node() -> Node {
     }
 }
 
+/// Creates a stable tab-content host. Individual tabs can replace its children
+/// without rebuilding the screen frame, tab strip, or surrounding controls.
+fn tab_content_node() -> Node {
+    Node {
+        width: percent(100),
+        min_width: px(0),
+        min_height: px(0),
+        flex_grow: 1.0,
+        flex_shrink: 1.0,
+        flex_direction: FlexDirection::Column,
+        row_gap: panel_gap(),
+        overflow: Overflow::clip(),
+        ..default()
+    }
+}
+
+pub(crate) fn spawn_tab_content(commands: &mut Commands, parent: Entity) -> Entity {
+    let content = commands.spawn((UiTabContent, tab_content_node())).id();
+    commands.entity(parent).add_child(content);
+    content
+}
+
+/// Removes only the current children of a stable tab-content host.
+pub(crate) fn clear_tab_content(
+    commands: &mut Commands,
+    content: Entity,
+    children: &Query<&Children>,
+) {
+    if let Ok(current_children) = children.get(content) {
+        for child in current_children.iter() {
+            commands.entity(child).despawn();
+        }
+    }
+}
+
 /// Creates the only scrolling region inside a fixed Options-style panel.
 pub fn spawn_scrollable_list(commands: &mut Commands, parent: Entity) -> Entity {
     let list = commands
@@ -719,6 +757,20 @@ pub fn spawn_tab_strip(
         }
     });
     tab_strip
+}
+
+pub(crate) fn update_tab_strip_selection(
+    commands: &mut Commands,
+    tabs: &Query<(Entity, &UiTabButton)>,
+    selected: usize,
+) {
+    for (entity, tab) in tabs {
+        if tab.index == selected {
+            commands.entity(entity).insert(UiSelected);
+        } else {
+            commands.entity(entity).remove::<UiSelected>();
+        }
+    }
 }
 
 fn standalone_label_node() -> Node {
@@ -826,10 +878,6 @@ pub fn spawn_text_input_field(
             TextColor(THEME_TEXT),
         ))
         .id();
-
-    if selected {
-        commands.entity(field).insert(AutoFocus);
-    }
 
     commands.entity(row).add_child(label_entity);
     commands.entity(row).add_child(field);
@@ -2125,6 +2173,7 @@ fn sync_ime_window() {}
 
 fn sync_lifecycle_field_visuals(
     input_focus: Res<InputFocus>,
+    navigation: Res<NavigationState>,
     mut fields: Query<(
         Entity,
         &LifecycleTextField,
@@ -2135,9 +2184,11 @@ fn sync_lifecycle_field_visuals(
     let focused = input_focus
         .get()
         .filter(|entity| fields.get(*entity).is_ok());
+    let lifecycle_active = navigation.current_screen == Some(ScreenId::Lifecycle);
 
-    for (entity, _, mut border, mut background) in &mut fields {
-        border.set_all(if focused == Some(entity) {
+    for (entity, field, mut border, mut background) in &mut fields {
+        let selected = lifecycle_active && navigation.selected == field.index;
+        border.set_all(if focused == Some(entity) || selected {
             THEME_ACCENT
         } else {
             THEME_MUTED

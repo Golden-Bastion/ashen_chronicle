@@ -90,6 +90,12 @@ enum RecordScreen {
     JournalEntry,
 }
 
+#[derive(Component)]
+struct CharacterHubScreen;
+
+#[derive(Component)]
+struct CharacterHubContent;
+
 #[derive(Resource)]
 pub(crate) struct RecordScreenState {
     screen: RecordScreen,
@@ -489,12 +495,17 @@ fn cancel(navigation: &mut NavigationState, records_state: &mut RecordScreenStat
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn render_if_active(
     mut commands: Commands,
     lifecycle: Res<LifecycleState>,
     navigation: Res<NavigationState>,
     mut records_state: ResMut<RecordScreenState>,
     roots: Query<Entity, With<BevyScreenRoot>>,
+    character_screens: Query<(), With<CharacterHubScreen>>,
+    character_content: Query<Entity, With<CharacterHubContent>>,
+    children: Query<&Children>,
+    tab_buttons: Query<(Entity, &bevy_presentation::UiTabButton)>,
 ) {
     if lifecycle.phase != LifecyclePhase::Complete || !is_record_screen(navigation.current_screen) {
         return;
@@ -503,14 +514,41 @@ fn render_if_active(
         return;
     }
 
-    for root in &roots {
-        commands.entity(root).despawn();
-    }
-
     let Some(session) = lifecycle.session.as_ref() else {
         return;
     };
     let character_view = character::build_character_sheet_view(&session.state);
+
+    if records_state.screen == RecordScreen::Character && !character_screens.is_empty() {
+        if let Some(content) = character_content.iter().next() {
+            let inventory = records::build_inventory_view(&session.state);
+            let quests = records::build_quest_log_view(&session.state);
+            let history = history_screen::build_view(&session.state);
+            bevy_presentation::clear_tab_content(&mut commands, content, &children);
+            render_character_hub_content(
+                &mut commands,
+                content,
+                &character_view,
+                &inventory,
+                &quests,
+                &history,
+                records_state.character_tab,
+                records_state.selected,
+            );
+            bevy_presentation::update_tab_strip_selection(
+                &mut commands,
+                &tab_buttons,
+                records_state.character_tab.index(),
+            );
+            records_state.dirty = false;
+            return;
+        }
+    }
+
+    for root in &roots {
+        commands.entity(root).despawn();
+    }
+
     match records_state.screen {
         RecordScreen::Character => render_character_hub(
             &mut commands,
@@ -576,6 +614,7 @@ fn render_character_hub(
     selected: usize,
 ) {
     let root = bevy_presentation::spawn_screen(commands, "CHARACTER");
+    commands.entity(root).insert(CharacterHubScreen);
     let panel = bevy_presentation::spawn_fixed_panel(commands, root);
     bevy_presentation::spawn_muted_label(
         commands,
@@ -587,15 +626,32 @@ fn render_character_hub(
         ),
     );
     bevy_presentation::spawn_tab_strip(commands, panel, &CHARACTER_TAB_LABELS, tab.index());
-    let content = bevy_presentation::spawn_scrollable_list(commands, panel);
+    let content = bevy_presentation::spawn_tab_content(commands, panel);
+    commands.entity(content).insert(CharacterHubContent);
+    render_character_hub_content(
+        commands, content, character, inventory, quests, history, tab, selected,
+    );
+}
 
+#[allow(clippy::too_many_arguments)]
+fn render_character_hub_content(
+    commands: &mut Commands,
+    content: Entity,
+    character: &CharacterSheetView,
+    inventory: &InventoryView,
+    quests: &QuestLogView,
+    history: &HistoryView,
+    tab: CharacterTab,
+    selected: usize,
+) {
+    let list = bevy_presentation::spawn_scrollable_list(commands, content);
     match tab {
-        CharacterTab::General => render_character_general_tab(commands, content, character),
-        CharacterTab::Reputation => render_character_reputation_tab(commands, content, character),
-        CharacterTab::Inventory => render_inventory_tab(commands, content, inventory, selected),
-        CharacterTab::Quests => render_quests_tab(commands, content, quests, selected),
+        CharacterTab::General => render_character_general_tab(commands, list, character),
+        CharacterTab::Reputation => render_character_reputation_tab(commands, list, character),
+        CharacterTab::Inventory => render_inventory_tab(commands, list, inventory, selected),
+        CharacterTab::Quests => render_quests_tab(commands, list, quests, selected),
         CharacterTab::Journal => {
-            render_journal_tab(commands, content, character, history, selected);
+            render_journal_tab(commands, list, character, history, selected);
         }
     }
 
@@ -605,7 +661,7 @@ fn render_character_hub(
         quests.quests.len(),
         journal_chronicle_entries(history, character).len(),
     );
-    let footer = bevy_presentation::spawn_option_footer(commands, panel);
+    let footer = bevy_presentation::spawn_option_footer(commands, content);
     let back = bevy_presentation::spawn_action_button(commands, footer, back_index, "back", "Back");
     if selected == back_index {
         commands.entity(back).insert(bevy_presentation::UiSelected);

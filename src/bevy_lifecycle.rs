@@ -30,6 +30,12 @@ struct AndroidLifecycleTextSync {
     last_sent_text: String,
 }
 
+#[derive(Component)]
+struct LifecycleCreationScreen;
+
+#[derive(Component)]
+struct LifecycleCreationContent;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum LifecyclePhase {
     Start,
@@ -126,14 +132,48 @@ fn lifecycle_input(
             }
             InputEvent::Tab if lifecycle.phase == LifecyclePhase::CreateCharacter => {
                 let next_tab = (lifecycle.creation_tab + 1) % 3;
+                input_focus.clear();
                 select_creation_tab(&mut lifecycle, &mut navigation, next_tab);
             }
             InputEvent::SelectTab(tab)
                 if lifecycle.phase == LifecyclePhase::CreateCharacter && tab < 3 =>
             {
+                input_focus.clear();
                 select_creation_tab(&mut lifecycle, &mut navigation, tab);
             }
             InputEvent::Cancel => handle_cancel(&mut lifecycle, &mut navigation),
+            InputEvent::Confirm if lifecycle.phase == LifecyclePhase::CreateCharacter => {
+                let focused_field = input_focus
+                    .get()
+                    .and_then(|entity| fields.get(entity).ok().map(|(_, field)| field.index));
+                if should_focus_creation_field(lifecycle.selected, focused_field) {
+                    if let Some((entity, _)) = fields
+                        .iter()
+                        .find(|(_, field)| field.index == lifecycle.selected)
+                    {
+                        input_focus.set(entity, FocusCause::Navigated);
+                    }
+                } else {
+                    // A focused field's submit action advances the creation flow.
+                    // Clear focus before changing the selected field or tab so
+                    // the Android bridge closes the keyboard instead of retaining
+                    // a stale text target.
+                    input_focus.clear();
+                    if let Some(exit) = activate_selection(&mut lifecycle, &mut navigation) {
+                        if exit {
+                            #[cfg(target_os = "android")]
+                            {
+                                request_android_game_exit();
+                            }
+                            #[cfg(not(target_os = "android"))]
+                            {
+                                commands.write_message(AppExit::Success);
+                            }
+                            return;
+                        }
+                    }
+                }
+            }
             InputEvent::Confirm => {
                 if let Some(exit) = activate_selection(&mut lifecycle, &mut navigation) {
                     if exit {
@@ -153,24 +193,17 @@ fn lifecycle_input(
         }
     }
 
-    let selected_field = if lifecycle.phase == LifecyclePhase::CreateCharacter {
-        fields
-            .iter()
-            .find(|(_, field)| field.index == lifecycle.selected)
-            .map(|(entity, _)| entity)
-    } else {
-        None
-    };
-    if let Some(entity) = selected_field {
-        if input_focus.get() != Some(entity) {
-            input_focus.set(entity, FocusCause::Navigated);
-        }
-    } else if input_focus
-        .get()
-        .is_some_and(|entity| fields.get(entity).is_ok())
+    if lifecycle.phase != LifecyclePhase::CreateCharacter
+        && input_focus
+            .get()
+            .is_some_and(|entity| fields.get(entity).is_ok())
     {
         input_focus.clear();
     }
+}
+
+fn should_focus_creation_field(selected: usize, focused_field: Option<usize>) -> bool {
+    selected < 3 && focused_field != Some(selected)
 }
 
 #[cfg(any(target_os = "android", test))]
@@ -736,11 +769,16 @@ impl LifecycleState {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn render_if_dirty(
     mut commands: Commands,
     mut lifecycle: ResMut<LifecycleState>,
     mut navigation: ResMut<NavigationState>,
     roots: Query<Entity, With<BevyScreenRoot>>,
+    creation_screens: Query<(), With<LifecycleCreationScreen>>,
+    creation_content: Query<Entity, With<LifecycleCreationContent>>,
+    children: Query<&Children>,
+    tab_buttons: Query<(Entity, &bevy_presentation::UiTabButton)>,
 ) {
     if !lifecycle.dirty {
         return;
@@ -752,6 +790,23 @@ fn render_if_dirty(
     if !should_render_lifecycle(navigation.current_screen) {
         return;
     }
+
+    if lifecycle.phase == LifecyclePhase::CreateCharacter && !creation_screens.is_empty() {
+        if let Some(content) = creation_content.iter().next() {
+            bevy_presentation::clear_tab_content(&mut commands, content, &children);
+            render_creation_content(&mut commands, content, &lifecycle);
+            bevy_presentation::update_tab_strip_selection(
+                &mut commands,
+                &tab_buttons,
+                lifecycle.creation_tab,
+            );
+            navigation.current_screen = Some(ScreenId::Lifecycle);
+            navigation.selected = lifecycle.selected;
+            lifecycle.dirty = false;
+            return;
+        }
+    }
+
     for root in &roots {
         commands.entity(root).despawn();
     }
@@ -792,6 +847,7 @@ fn render(commands: &mut Commands, lifecycle: &LifecycleState) {
         bevy_presentation::spawn_screen(commands, "THE EVER-UNFOLDING SAGA")
     };
     let panel = if lifecycle.phase == LifecyclePhase::CreateCharacter {
+        commands.entity(root).insert(LifecycleCreationScreen);
         let panel = bevy_presentation::spawn_fixed_panel(commands, root);
         commands.entity(panel).insert((
             bevy_presentation::UiSurface,
@@ -905,8 +961,19 @@ fn render_creation(commands: &mut Commands, panel: Entity, lifecycle: &Lifecycle
         &["World", "Character", "Start"],
         lifecycle.creation_tab,
     );
+    let tab_content = bevy_presentation::spawn_tab_content(commands, panel);
+    commands
+        .entity(tab_content)
+        .insert(LifecycleCreationContent);
+    render_creation_content(commands, tab_content, lifecycle);
+}
 
-    let content = bevy_presentation::spawn_scrollable_list(commands, panel);
+fn render_creation_content(
+    commands: &mut Commands,
+    tab_content: Entity,
+    lifecycle: &LifecycleState,
+) {
+    let content = bevy_presentation::spawn_scrollable_list(commands, tab_content);
     match lifecycle.creation_tab {
         0 => {
             bevy_presentation::spawn_muted_label(
@@ -964,7 +1031,7 @@ fn render_creation(commands: &mut Commands, panel: Entity, lifecycle: &Lifecycle
                 "Data-driven character backgrounds and their starting circumstances are planned for a later character-creation update.",
             );
 
-            let footer = bevy_presentation::spawn_option_footer(commands, panel);
+            let footer = bevy_presentation::spawn_option_footer(commands, tab_content);
             let button = bevy_presentation::spawn_action_button(
                 commands,
                 footer,

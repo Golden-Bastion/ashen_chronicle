@@ -51,7 +51,12 @@ pub(crate) fn build_character_sheet_view(state: &GameState) -> CharacterSheetVie
             .map(|faction| FactionView {
                 name: faction.name.clone(),
                 reputation: faction.reputation,
-                memories: faction.memory.clone(),
+                memories: faction
+                    .memory
+                    .iter()
+                    .filter(|entry| !crate::model::is_internal_memory_entry(entry))
+                    .cloned()
+                    .collect(),
             })
             .collect(),
         notes: character.notes.clone(),

@@ -260,3 +260,11 @@ fn lifecycle_buttons_reference_existing_ui_icon_assets() {
         );
     }
 }
+
+#[test]
+fn creation_field_focus_is_explicit_and_stops_at_the_review_tab() {
+    assert!(should_focus_creation_field(0, None));
+    assert!(should_focus_creation_field(1, Some(0)));
+    assert!(!should_focus_creation_field(1, Some(1)));
+    assert!(!should_focus_creation_field(3, None));
+}

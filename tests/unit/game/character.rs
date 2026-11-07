@@ -21,7 +21,12 @@ fn character_sheet_view_preserves_derived_character_data() {
     }];
     let mut faction = Faction::new(20, "Wardens");
     faction.reputation = 5;
-    faction.memory.push("A debt remembered.".to_string());
+    faction.memory = vec![
+        "A debt remembered.".to_string(),
+        "[authored anchor] Wardens are anchored in the northern reach.".to_string(),
+        "[generated relationship] alliance with the Ashen Court.".to_string(),
+        "A generated faction shaped by a harsh mountain region.".to_string(),
+    ];
     state.factions.push(faction);
 
     let view = build_character_sheet_view(&state);
@@ -35,4 +40,5 @@ fn character_sheet_view_preserves_derived_character_data() {
     assert_eq!(view.conditions[0].remaining, 2);
     assert_eq!(view.factions[0].reputation, 5);
     assert_eq!(view.factions[0].memories, vec!["A debt remembered."]);
+    assert_eq!(state.factions[0].memory.len(), 4);
 }

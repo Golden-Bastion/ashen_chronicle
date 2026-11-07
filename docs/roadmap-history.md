@@ -709,3 +709,10 @@ src/
 - Replaced Ashen Gate's ASCII scene art with a full-width environmental panorama while leaving the location card and surrounding gameplay UI unchanged (#350).
 - Replaced the JPEG intermediate with a 600×125 PNG and nearest-neighbor image sampling for crisp pixel-art edges; retained the ASCII fallback for other locations and banner-load failures (#351).
 - Bumped the project and Android fallback version metadata to 0.51.23.
+
+### v0.52.6: UI transitions, text focus, and memory presentation
+- Kept the New Game, Character, and Options screen shells and tab strips in place while refreshing only the selected tab's content.
+- Reconciled UI scaling on preference and viewport changes, with a separate incremental pass for newly spawned UI nodes.
+- Decoupled New Game field selection from editable focus so the native keyboard opens only after explicit field activation; Android keyboard dismissal no longer triggers automatic refocus.
+- Filtered authored-anchor, generated-relationship, and generated-faction metadata from player-facing faction and NPC memories without removing the persistent procedural records.
+- Bumped the project version to 0.52.6.
