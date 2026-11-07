@@ -20,8 +20,9 @@ use crate::bevy_presentation::{
 use crate::input::InputEvent;
 use crate::model::{Condition, EntityId, ExplorationPosition, GameState};
 use crate::spatial::{
-    configure_map_exits, generate_local_map_with_layout, ExplorationSession, GridPosition,
-    LocalMap, LocalMapConfig, MapExit, SpatialPropKind, Terrain,
+    configure_map_exits, ensure_spatial_entity_placements, generate_local_map_with_layout,
+    ExplorationSession, GridPosition, LocalMap, LocalMapConfig, MapExit, SpatialEntityKind,
+    SpatialPropKind, Terrain,
 };
 
 const TILE_HALF_WIDTH: f32 = 24.0;
@@ -54,6 +55,12 @@ const PLAYER_DEPTH_OFFSET: f32 = 0.04;
 struct SpatialWorldEntity;
 
 #[derive(Component)]
+pub(crate) struct SpatialSceneRoot;
+
+#[derive(Component)]
+struct SpatialActorEntity;
+
+#[derive(Component)]
 struct SpatialPlayer;
 
 #[derive(Component, Clone, Copy)]
@@ -80,6 +87,17 @@ struct SpatialJoystickState {
 
 #[derive(Component)]
 struct SpatialInteractionPrompt;
+
+#[derive(Component)]
+struct SpatialPromptLabel;
+
+/// Request to start an interaction with a world-owned actor. The scene remains
+/// active; the interaction adapter presents the conversation/search overlay.
+#[derive(Message, Debug, Clone, Copy)]
+pub(crate) enum SpatialInteractionRequest {
+    Talk(EntityId),
+    SearchRemains(EntityId),
+}
 
 #[derive(Component)]
 struct SpatialExitPrompt {
@@ -113,7 +131,8 @@ pub(crate) struct SpatialExplorationState {
 }
 
 pub(crate) fn install(app: &mut App) {
-    app.init_resource::<SpatialExplorationState>()
+    app.add_message::<SpatialInteractionRequest>()
+        .init_resource::<SpatialExplorationState>()
         .init_resource::<SpatialJoystickState>()
         .add_systems(Startup, setup_spatial_render_assets)
         .add_systems(
@@ -165,6 +184,7 @@ pub(crate) fn enter(
     if map.exits.is_empty() {
         configure_map_exits(&mut map, &location.exits);
     }
+    sync_map_interactable_placements(&mut map, game, location.id);
     state.maps.insert(location_id.clone(), map);
     let map = state.maps.get(&location_id).expect("map was just inserted");
     let saved_position = game
@@ -215,6 +235,27 @@ pub(crate) fn enter(
     navigation.selected = 0;
 }
 
+fn sync_map_interactable_placements(map: &mut LocalMap, game: &GameState, location_id: EntityId) {
+    let mut entities = game
+        .npcs
+        .iter()
+        .filter(|npc| npc.location_id == location_id)
+        .map(|npc| (npc.id, SpatialEntityKind::Npc))
+        .chain(
+            game.corpses
+                .iter()
+                .filter(|corpse| {
+                    corpse.location_id == location_id && !corpse.inventory.is_empty()
+                })
+                .map(|corpse| (corpse.id, SpatialEntityKind::Corpse)),
+        )
+        .collect::<Vec<_>>();
+    entities.sort_by_key(|(entity_id, kind)| {
+        (*entity_id, matches!(kind, SpatialEntityKind::Corpse) as u8)
+    });
+    ensure_spatial_entity_placements(map, &entities);
+}
+
 fn setup_spatial_render_assets(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
     let tile_images = [
         load_spatial_image(&mut images, "spatial/terrain_floor.png"),
@@ -263,18 +304,21 @@ fn spatial_input(
     mut queue: ResMut<GameplayInputQueue>,
     mut state: ResMut<SpatialExplorationState>,
     joystick: Res<SpatialJoystickState>,
+    interaction_state: Res<crate::bevy_interactions::BevyInteractionState>,
+    mut requests: MessageWriter<SpatialInteractionRequest>,
     mut activations: MessageReader<UiButtonActivation>,
     action_buttons: Query<&SpatialAction>,
 ) {
+    if lifecycle.phase != LifecyclePhase::Complete
+        || navigation.current_screen != Some(ScreenId::SpatialExploration)
+        || crate::bevy_interactions::spatial_overlay_open(&interaction_state)
+    {
+        return;
+    }
     let activated_buttons = activations
         .read()
         .map(|activation| activation.0)
         .collect::<Vec<_>>();
-    if lifecycle.phase != LifecyclePhase::Complete
-        || navigation.current_screen != Some(ScreenId::SpatialExploration)
-    {
-        return;
-    }
 
     let mut direction = Vec2::ZERO;
     if keyboard.pressed(KeyCode::ArrowUp) || keyboard.pressed(KeyCode::KeyW) {
@@ -321,7 +365,7 @@ fn spatial_input(
     }
 
     if keyboard.just_pressed(KeyCode::KeyE) || keyboard.just_pressed(KeyCode::Enter) {
-        interact_contextually(&mut state, &mut lifecycle, &mut navigation);
+        interact_contextually(&mut state, &mut lifecycle, &mut navigation, &mut requests);
     }
     if keyboard.just_pressed(KeyCode::Escape) || keyboard.just_pressed(KeyCode::Backspace) {
         exit_spatial(&mut state, &mut navigation);
@@ -332,7 +376,7 @@ fn spatial_input(
             continue;
         };
         match *action {
-            SpatialAction::Interact => interact_with_poi(&mut state, &mut lifecycle),
+            SpatialAction::Interact => interact_contextually(&mut state, &mut lifecycle, &mut navigation, &mut requests),
             SpatialAction::Exit => exit_spatial(&mut state, &mut navigation),
             SpatialAction::UseExit(target_location_id) => {
                 use_map_exit(&mut state, &mut navigation, target_location_id);
@@ -461,17 +505,33 @@ fn interact_contextually(
     state: &mut SpatialExplorationState,
     lifecycle: &mut LifecycleState,
     navigation: &mut NavigationState,
+    requests: &mut MessageWriter<SpatialInteractionRequest>,
 ) {
     let target = state
         .session
         .as_ref()
         .and_then(|session| state.maps.get(&session.location_id))
-        .and_then(|map| nearest_contextual_exit(map, state.position))
-        .map(|exit| exit.target_location_id);
-    if let Some(target_location_id) = target {
-        use_map_exit(state, navigation, target_location_id);
-    } else {
-        interact_with_poi(state, lifecycle);
+        .and_then(|map| {
+            lifecycle.session.as_ref().and_then(|game_session| {
+                nearest_interaction_target(map, &game_session.state, state.position)
+            })
+        });
+
+    match target {
+        Some(NearbyInteractionTarget::Npc(entity_id)) => {
+            requests.write(SpatialInteractionRequest::Talk(entity_id));
+        }
+        Some(NearbyInteractionTarget::Corpse(entity_id)) => {
+            requests.write(SpatialInteractionRequest::SearchRemains(entity_id));
+        }
+        Some(NearbyInteractionTarget::PointOfInterest) => interact_with_poi(state, lifecycle),
+        Some(NearbyInteractionTarget::Exit(target_location_id)) => {
+            use_map_exit(state, navigation, target_location_id);
+        }
+        None => {
+            state.message = Some("There is nothing within reach that can be approached.".to_string());
+            state.dirty = true;
+        }
     }
 }
 
@@ -747,6 +807,50 @@ fn render_spatial_screen(
         }
     }
 
+    let game = lifecycle.session.as_ref().map(|session| &session.state);
+    for placement in &map.interactables {
+        let exists = game.is_some_and(|game| match placement.kind {
+            SpatialEntityKind::Npc => game.npcs.iter().any(|npc| {
+                npc.id == placement.entity_id && npc.location_id == game.character.location_id
+            }),
+            SpatialEntityKind::Corpse => game.corpses.iter().any(|corpse| {
+                corpse.id == placement.entity_id
+                    && corpse.location_id == game.character.location_id
+                    && !corpse.inventory.is_empty()
+            }),
+        });
+        if !exists {
+            continue;
+        }
+        let Some(image) = assets.poi_image.clone() else {
+            continue;
+        };
+        let grid_position = Vec2::new(
+            f32::from(placement.position.x) + 0.5,
+            f32::from(placement.position.y) + 0.5,
+        );
+        let projected = map_to_world(grid_position, Some(map));
+        let mut sprite = Sprite::from_image(image);
+        sprite.custom_size = Some(match placement.kind {
+            SpatialEntityKind::Npc => Vec2::new(17.0, 22.0),
+            SpatialEntityKind::Corpse => Vec2::new(21.0, 13.0),
+        });
+        sprite.color = match placement.kind {
+            SpatialEntityKind::Npc => Color::srgb(0.76, 0.80, 0.84),
+            SpatialEntityKind::Corpse => Color::srgb(0.76, 0.43, 0.38),
+        };
+        commands.spawn((
+            SpatialWorldEntity,
+            SpatialActorEntity,
+            sprite,
+            Transform::from_xyz(
+                projected.x,
+                projected.y + if placement.kind == SpatialEntityKind::Npc { 11.0 } else { 5.0 },
+                depth_for_position(grid_position) + PLAYER_DEPTH_OFFSET - 0.005,
+            ),
+        ));
+    }
+
     let player_ground_position = session_position(&state);
     let player_position = map_to_world(player_ground_position, Some(map));
     if let Some(image) = assets.player_image.clone() {
@@ -769,6 +873,7 @@ fn render_spatial_screen(
     let root = commands
         .spawn((
             BevyScreenRoot,
+            SpatialSceneRoot,
             Node {
                 width: percent(100),
                 height: percent(100),
@@ -807,7 +912,7 @@ fn render_spatial_screen(
     spawn_label(
         &mut commands,
         header,
-        format!("{location_name} - ASHEN GROUND"),
+        format!("{location_name} - LOCAL EXPLORATION"),
     );
 
     // Keep essential character status anchored to the spatial view. All values
@@ -911,15 +1016,7 @@ fn render_spatial_screen(
     spawn_control(
         &mut commands,
         footer,
-        if map
-            .points_of_interest
-            .first()
-            .is_some_and(|poi| poi.interacted)
-        {
-            "Examine again"
-        } else {
-            "Examine"
-        },
+        "Interact",
         SpatialAction::Interact,
         interaction_display,
     );
@@ -1092,6 +1189,9 @@ fn spawn_control(
             TextColor(bevy_presentation::THEME_TEXT),
         ))
         .id();
+    if matches!(action, SpatialAction::Interact) {
+        commands.entity(text).insert(SpatialPromptLabel);
+    }
     commands.entity(entity).add_child(text);
     commands.entity(parent).add_child(entity);
     entity
@@ -1141,6 +1241,7 @@ fn update_spatial_context_prompt(
     navigation: Res<NavigationState>,
     lifecycle: Res<LifecycleState>,
     mut poi_prompts: Query<&mut Node, With<SpatialInteractionPrompt>>,
+    mut prompt_labels: Query<&mut Text, With<SpatialPromptLabel>>,
     mut exit_prompts: Query<(&SpatialExitPrompt, &mut Node), Without<SpatialInteractionPrompt>>,
 ) {
     if lifecycle.phase != LifecyclePhase::Complete
@@ -1152,34 +1253,31 @@ fn update_spatial_context_prompt(
         .session
         .as_ref()
         .and_then(|session| state.maps.get(&session.location_id));
+    let game = lifecycle.session.as_ref().map(|session| &session.state);
     let position = session_position(&state);
-    let poi_available = current_map.is_some_and(|map| poi_interaction_available(map, position));
-    let poi_display = if poi_available {
+    let target = current_map
+        .zip(game)
+        .and_then(|(map, game)| nearest_interaction_target(map, game, position));
+    let interaction_display = if target.is_some() {
         Display::Flex
     } else {
         Display::None
     };
     for mut node in &mut poi_prompts {
-        if node.display != poi_display {
-            node.display = poi_display;
+        if node.display != interaction_display {
+            node.display = interaction_display;
         }
     }
+    let label = match (target, game, current_map) {
+        (Some(target), Some(game), Some(map)) => interaction_prompt_label(target, game, map),
+        _ => "Interact".to_string(),
+    };
+    for mut text in &mut prompt_labels {
+        *text = Text::new(label.clone());
+    }
 
-    for (prompt, mut node) in &mut exit_prompts {
-        let available = current_map.is_some_and(|map| {
-            map.exits
-                .iter()
-                .find(|exit| exit.target_location_id == prompt.target_location_id)
-                .is_some_and(|exit| exit_interaction_available(map, position, exit))
-        });
-        let display = if available {
-            Display::Flex
-        } else {
-            Display::None
-        };
-        if node.display != display {
-            node.display = display;
-        }
+    for (_, mut node) in &mut exit_prompts {
+        node.display = Display::None;
     }
 }
 
@@ -1318,15 +1416,99 @@ fn clamp_camera_target(target: Vec2, map: &LocalMap, viewport: Vec2) -> Vec2 {
     )
 }
 
-fn nearest_contextual_exit(map: &LocalMap, position: Vec2) -> Option<&MapExit> {
-    let exit = nearest_available_exit(map, position)?;
-    if poi_interaction_available(map, position)
-        && poi_distance_px(map, position)
-            .is_some_and(|distance| distance < exit_distance_px(map, position, exit))
-    {
-        None
-    } else {
-        Some(exit)
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum NearbyInteractionTarget {
+    Npc(EntityId),
+    Corpse(EntityId),
+    PointOfInterest,
+    Exit(EntityId),
+}
+
+fn nearest_interaction_target(
+    map: &LocalMap,
+    game: &GameState,
+    position: Vec2,
+) -> Option<NearbyInteractionTarget> {
+    let mut candidates = Vec::new();
+    if poi_interaction_available(map, position) {
+        if let Some(distance) = poi_distance_px(map, position) {
+            candidates.push((distance, 2_u8, NearbyInteractionTarget::PointOfInterest));
+        }
+    }
+
+    for placement in &map.interactables {
+        let active = match placement.kind {
+            SpatialEntityKind::Npc => game.npcs.iter().any(|npc| {
+                npc.id == placement.entity_id && npc.location_id == game.character.location_id
+            }),
+            SpatialEntityKind::Corpse => game.corpses.iter().any(|corpse| {
+                corpse.id == placement.entity_id
+                    && corpse.location_id == game.character.location_id
+                    && !corpse.inventory.is_empty()
+            }),
+        };
+        if !active {
+            continue;
+        }
+        let target = Vec2::new(
+            f32::from(placement.position.x) + 0.5,
+            f32::from(placement.position.y) + 0.5,
+        );
+        let distance = map_to_world(position, Some(map)).distance(map_to_world(target, Some(map)));
+        if distance > INTERACTION_RANGE_PX || !has_line_of_sight(map, position, target) {
+            continue;
+        }
+        let (priority, target) = match placement.kind {
+            SpatialEntityKind::Npc => (0, NearbyInteractionTarget::Npc(placement.entity_id)),
+            SpatialEntityKind::Corpse => (1, NearbyInteractionTarget::Corpse(placement.entity_id)),
+        };
+        candidates.push((distance, priority, target));
+    }
+
+    for exit in &map.exits {
+        if exit_interaction_available(map, position, exit) {
+            candidates.push((
+                exit_distance_px(map, position, exit),
+                3,
+                NearbyInteractionTarget::Exit(exit.target_location_id),
+            ));
+        }
+    }
+
+    candidates
+        .into_iter()
+        .min_by(|left, right| left.0.total_cmp(&right.0).then(left.1.cmp(&right.1)))
+        .map(|(_, _, target)| target)
+}
+
+fn interaction_prompt_label(
+    target: NearbyInteractionTarget,
+    game: &GameState,
+    map: &LocalMap,
+) -> String {
+    match target {
+        NearbyInteractionTarget::Npc(entity_id) => game
+            .npcs
+            .iter()
+            .find(|npc| npc.id == entity_id)
+            .map(|npc| format!("Talk — {}", npc.name))
+            .unwrap_or_else(|| "Talk".to_string()),
+        NearbyInteractionTarget::Corpse(entity_id) => game
+            .corpses
+            .iter()
+            .find(|corpse| corpse.id == entity_id)
+            .map(|corpse| format!("Search — {}", corpse.former_name))
+            .unwrap_or_else(|| "Search remains".to_string()),
+        NearbyInteractionTarget::PointOfInterest => map
+            .points_of_interest
+            .first()
+            .map(|poi| format!("Examine — {}", poi.title))
+            .unwrap_or_else(|| "Examine".to_string()),
+        NearbyInteractionTarget::Exit(target_location_id) => game
+            .world
+            .location_by_id(target_location_id)
+            .map(|location| format!("Enter — {}", location.name))
+            .unwrap_or_else(|| "Use passage".to_string()),
     }
 }
 
