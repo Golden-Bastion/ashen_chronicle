@@ -81,7 +81,12 @@ fn build_conversation_view(state: &GameState, npc_index: usize) -> ConversationV
         .as_ref()
         .and_then(|content| content.portrait_for(&npc.name))
         .map(str::to_string);
-    let memory = npc.memory.last().cloned();
+    let memory = npc
+        .memory
+        .iter()
+        .rev()
+        .find(|entry| !crate::model::is_internal_memory_entry(entry))
+        .cloned();
     let available = npc_is_available_now(state.world.time_points);
     let unavailable_message =
         (!available).then(|| npc_unavailable_message(&npc_name, state.world.time_points));
