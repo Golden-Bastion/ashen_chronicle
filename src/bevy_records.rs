@@ -495,6 +495,7 @@ fn cancel(navigation: &mut NavigationState, records_state: &mut RecordScreenStat
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn render_if_active(
     mut commands: Commands,
     lifecycle: Res<LifecycleState>,
