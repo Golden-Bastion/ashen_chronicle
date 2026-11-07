@@ -2175,6 +2175,7 @@ fn sync_ime_window() {}
 
 fn sync_lifecycle_field_visuals(
     input_focus: Res<InputFocus>,
+    navigation: Res<NavigationState>,
     mut fields: Query<(
         Entity,
         &LifecycleTextField,
@@ -2185,9 +2186,11 @@ fn sync_lifecycle_field_visuals(
     let focused = input_focus
         .get()
         .filter(|entity| fields.get(*entity).is_ok());
+    let lifecycle_active = navigation.current_screen == Some(ScreenId::Lifecycle);
 
-    for (entity, _, mut border, mut background) in &mut fields {
-        border.set_all(if focused == Some(entity) {
+    for (entity, field, mut border, mut background) in &mut fields {
+        let selected = lifecycle_active && navigation.selected == field.index;
+        border.set_all(if focused == Some(entity) || selected {
             THEME_ACCENT
         } else {
             THEME_MUTED
