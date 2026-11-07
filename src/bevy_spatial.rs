@@ -916,7 +916,7 @@ fn render_spatial_screen(
                 .location_by_id(session.state.character.location_id)
         })
         .map(|location| location.name.to_uppercase())
-        .unwrap_or_else(|| "DANGEROUS LOCATION".to_string());
+        .unwrap_or_else(|| "UNKNOWN LOCATION".to_string());
     spawn_label(
         &mut commands,
         header,
