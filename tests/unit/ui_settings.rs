@@ -210,4 +210,24 @@ fn applying_settings_updates_layout_typography_and_touch_targets() {
     assert_eq!(square.min_width, Val::Px(resized_touch_size));
     assert_eq!(square.height, Val::Px(resized_touch_size));
     assert_eq!(square.min_height, Val::Px(resized_touch_size));
+
+    // New UI nodes are initialized even when neither preferences nor the
+    // viewport have changed since the previous reconciliation.
+    let newly_added_layout = world.spawn((Node::default(), EmSize(1.0))).id();
+    let newly_added_touch_target = world
+        .spawn((
+            Node::default(),
+            crate::bevy_presentation::UiTouchTargetShape::MinimumHeight,
+        ))
+        .id();
+    schedule.run(&mut world);
+
+    assert!(
+        (world.get::<EmSize>(newly_added_layout).unwrap().0 - resized_viewport_em * 1.25).abs()
+            < 0.01
+    );
+    assert_eq!(
+        world.get::<Node>(newly_added_touch_target).unwrap().min_height,
+        Val::Px(resized_touch_size)
+    );
 }
