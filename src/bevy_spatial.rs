@@ -371,11 +371,8 @@ fn spatial_input(
         map_mark_discovered(&mut state, next);
     }
 
-    if keyboard.just_pressed(KeyCode::KeyE) || keyboard.just_pressed(KeyCode::Enter) {
+    if keyboard.just_pressed(KeyCode::KeyE) {
         interact_contextually(&mut state, &mut lifecycle, &mut navigation, &mut requests);
-    }
-    if keyboard.just_pressed(KeyCode::Escape) || keyboard.just_pressed(KeyCode::Backspace) {
-        exit_spatial(&mut state, &mut navigation);
     }
 
     for button in activated_buttons {
@@ -390,8 +387,14 @@ fn spatial_input(
 
     let events = std::mem::take(&mut queue.0);
     for event in events {
-        if event == InputEvent::Cancel {
-            exit_spatial(&mut state, &mut navigation);
+        match event {
+            InputEvent::Confirm => {
+                interact_contextually(&mut state, &mut lifecycle, &mut navigation, &mut requests);
+            }
+            InputEvent::Cancel | InputEvent::Backspace => {
+                exit_spatial(&mut state, &mut navigation);
+            }
+            _ => {}
         }
     }
 
