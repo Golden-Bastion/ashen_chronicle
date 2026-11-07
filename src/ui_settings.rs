@@ -136,6 +136,7 @@ pub(crate) fn install(app: &mut App) {
         .add_systems(Update, apply_ui_settings);
 }
 
+#[allow(clippy::too_many_arguments, clippy::type_complexity)]
 fn apply_ui_settings(
     settings: Res<UiSettings>,
     window: Single<&Window, With<bevy::window::PrimaryWindow>>,
