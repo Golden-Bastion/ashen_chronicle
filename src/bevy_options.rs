@@ -556,6 +556,7 @@ fn close_options(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn render_if_active(
     mut commands: Commands,
     lifecycle: Res<LifecycleState>,
