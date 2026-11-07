@@ -335,6 +335,7 @@ fn spatial_entity_placements_are_stable_unique_and_backward_compatible() {
     assert_eq!(map.interactables.len(), requested.len());
     for (index, placement) in map.interactables.iter().enumerate() {
         assert!(map.is_walkable(placement.position));
+        assert!(reachable_walkable_tiles(&map).contains(&placement.position));
         assert_ne!(placement.position, map.entry);
         assert!(!map.points_of_interest.iter().any(|poi| poi.position == placement.position));
         assert!(!map.exits.iter().any(|exit| exit.position == placement.position));
