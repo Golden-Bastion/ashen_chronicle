@@ -173,7 +173,7 @@ fn selection_count(state: &BevyInteractionState, lifecycle: &LifecycleState) -> 
                     legacy::build_remains_view_for_bevy(&session.state)
                         .remains
                         .iter()
-                        .any(|remains| remains.id == *corpse_id)
+                        .any(|remains| remains.id == *corpse_id && !remains.items.is_empty())
                 })
                 .map(|_| 2)
                 .unwrap_or(1),
@@ -351,7 +351,11 @@ fn activate_spatial_overlay(
                 return;
             };
             let view = legacy::build_remains_view_for_bevy(&session.state);
-            let Some(selection) = view.remains.iter().position(|remains| remains.id == corpse_id)
+            let Some(selection) = view
+                .remains
+                .iter()
+                .filter(|remains| !remains.items.is_empty())
+                .position(|remains| remains.id == corpse_id)
             else {
                 state.message = Some("These remains have already been searched.".to_string());
                 state.dirty = true;
@@ -722,7 +726,11 @@ fn render_spatial_remains_content(
     selected: usize,
     message: Option<&str>,
 ) {
-    let remains = corpse_id.and_then(|id| view.remains.iter().find(|remains| remains.id == id));
+    let remains = corpse_id.and_then(|id| {
+        view.remains
+            .iter()
+            .find(|remains| remains.id == id && !remains.items.is_empty())
+    });
     let Some(remains) = remains else {
         bevy_presentation::spawn_muted_label(commands, parent, "These remains are no longer here.");
         let button = bevy_presentation::spawn_action_button(commands, footer, 0, "back", "Leave");
