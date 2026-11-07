@@ -678,7 +678,13 @@ fn render_conversation_content(
         bevy_presentation::spawn_muted_label(commands, parent, format!("Memory: {memory}"));
     }
 
-    if !view.available {
+    if let Some(message) = message {
+        for line in message.lines() {
+            bevy_presentation::spawn_muted_label(commands, parent, line);
+        }
+        let button = bevy_presentation::spawn_action_button(commands, footer, 0, "continue", "Continue");
+        commands.entity(button).insert(bevy_presentation::UiSelected);
+    } else if !view.available {
         bevy_presentation::spawn_muted_label(
             commands,
             parent,
@@ -687,12 +693,6 @@ fn render_conversation_content(
                 .unwrap_or("They are unavailable right now."),
         );
         let button = bevy_presentation::spawn_action_button(commands, footer, 0, "back", "Leave");
-        commands.entity(button).insert(bevy_presentation::UiSelected);
-    } else if let Some(message) = message {
-        for line in message.lines() {
-            bevy_presentation::spawn_muted_label(commands, parent, line);
-        }
-        let button = bevy_presentation::spawn_action_button(commands, footer, 0, "continue", "Continue");
         commands.entity(button).insert(bevy_presentation::UiSelected);
     } else {
         for (index, option) in view.options.iter().enumerate() {
@@ -739,15 +739,17 @@ fn render_spatial_remains_content(
     }
     if let Some(message) = message {
         bevy_presentation::spawn_muted_label(commands, parent, message);
-    }
-
-    let search = bevy_presentation::spawn_action_button(commands, footer, 0, "remains", "Search remains");
-    if selected == 0 {
-        commands.entity(search).insert(bevy_presentation::UiSelected);
-    }
-    let leave = bevy_presentation::spawn_action_button(commands, footer, 1, "back", "Leave");
-    if selected == 1 {
-        commands.entity(leave).insert(bevy_presentation::UiSelected);
+        let button = bevy_presentation::spawn_action_button(commands, footer, 0, "continue", "Continue");
+        commands.entity(button).insert(bevy_presentation::UiSelected);
+    } else {
+        let search = bevy_presentation::spawn_action_button(commands, footer, 0, "remains", "Search remains");
+        if selected == 0 {
+            commands.entity(search).insert(bevy_presentation::UiSelected);
+        }
+        let leave = bevy_presentation::spawn_action_button(commands, footer, 1, "back", "Leave");
+        if selected == 1 {
+            commands.entity(leave).insert(bevy_presentation::UiSelected);
+        }
     }
 }
 
