@@ -141,8 +141,19 @@ fn apply_ui_settings(
     window: Single<&Window, With<bevy::window::PrimaryWindow>>,
     mut ui_scale: ResMut<UiScale>,
     mut rem_size: ResMut<RemSize>,
-    mut em_sizes: Query<&mut EmSize, Without<TextFont>>,
-    mut touch_targets: Query<(&mut Node, &crate::bevy_presentation::UiTouchTargetShape)>,
+    mut em_sizes: ParamSet<(
+        Query<&mut EmSize, Without<TextFont>>,
+        Query<&mut EmSize, (Without<TextFont>, Added<EmSize>)>,
+    )>,
+    mut touch_targets: ParamSet<(
+        Query<(&mut Node, &crate::bevy_presentation::UiTouchTargetShape)>,
+        Query<
+            (&mut Node, &crate::bevy_presentation::UiTouchTargetShape),
+            Added<crate::bevy_presentation::UiTouchTargetShape>,
+        >,
+    )>,
+    mut last_settings: Local<Option<UiSettings>>,
+    mut last_viewport_min: Local<f32>,
 ) {
     let target_ui_scale = settings.ui_scale();
     if (ui_scale.0 - target_ui_scale).abs() > f32::EPSILON {
@@ -150,66 +161,94 @@ fn apply_ui_settings(
     }
 
     let viewport_min = window.width().min(window.height());
-    if viewport_min > 0.0 {
-        let base_viewport_em = viewport_min * BASE_REM_VMIN_PERCENT;
-        let target_rem_size = base_viewport_em * settings.font_scale();
-        if (rem_size.0 - target_rem_size).abs() > 0.01 {
-            rem_size.0 = target_rem_size;
-        }
-
-        // Newly spawned UI nodes need their EmSize updated too, not only nodes
-        // that existed when the user last changed a preference.
-        let target_em_size = base_viewport_em * target_ui_scale;
-        for mut em_size in &mut em_sizes {
-            if (em_size.0 - target_em_size).abs() > 0.01 {
-                em_size.0 = target_em_size;
-            }
-        }
-    }
-
-    // Bevy's UiScale also scales fixed-pixel dimensions. Compensate marked
-    // interactive controls on Android so their final hit area remains at least
-    // 48 logical pixels even when visual UI scaling is below 100%.
+    let apply_all = *last_settings != Some(*settings)
+        || (*last_viewport_min - viewport_min).abs() > 0.01;
+    let base_viewport_em = viewport_min * BASE_REM_VMIN_PERCENT;
+    let target_em_size = base_viewport_em * target_ui_scale;
     let touch_scale = if cfg!(target_os = "android") {
         target_ui_scale
     } else {
         1.0
     };
+
+    if apply_all {
+        if viewport_min > 0.0 {
+            let target_rem_size = base_viewport_em * settings.font_scale();
+            if (rem_size.0 - target_rem_size).abs() > 0.01 {
+                rem_size.0 = target_rem_size;
+            }
+
+            let mut em_query = em_sizes.p0();
+            for mut em_size in em_query.iter_mut() {
+                if (em_size.0 - target_em_size).abs() > 0.01 {
+                    em_size.0 = target_em_size;
+                }
+            }
+        }
+
+        let mut touch_query = touch_targets.p0();
+        for (mut node, shape) in touch_query.iter_mut() {
+            apply_touch_target_shape(&mut node, shape, touch_scale);
+        }
+
+        *last_settings = Some(*settings);
+        *last_viewport_min = viewport_min;
+    } else {
+        // New UI nodes still need their EmSize and touch-target compensation,
+        // but existing nodes do not need to be scanned every frame.
+        if viewport_min > 0.0 {
+            let mut em_query = em_sizes.p1();
+            for mut em_size in em_query.iter_mut() {
+                if (em_size.0 - target_em_size).abs() > 0.01 {
+                    em_size.0 = target_em_size;
+                }
+            }
+        }
+
+        let mut touch_query = touch_targets.p1();
+        for (mut node, shape) in touch_query.iter_mut() {
+            apply_touch_target_shape(&mut node, shape, touch_scale);
+        }
+    }
+}
+
+fn apply_touch_target_shape(
+    node: &mut Node,
+    shape: &crate::bevy_presentation::UiTouchTargetShape,
+    touch_scale: f32,
+) {
     let target_touch_size = Val::Px(touch_target_base_size(
         crate::bevy_presentation::UI_TOUCH_TARGET_PX,
         touch_scale,
     ));
-    for (mut node, shape) in &mut touch_targets {
-        match shape {
-            crate::bevy_presentation::UiTouchTargetShape::MinimumHeight => {
-                if node.min_height != target_touch_size {
-                    node.min_height = target_touch_size;
-                }
+    match shape {
+        crate::bevy_presentation::UiTouchTargetShape::MinimumHeight => {
+            if node.min_height != target_touch_size {
+                node.min_height = target_touch_size;
             }
-            crate::bevy_presentation::UiTouchTargetShape::MinimumBounds { width, height } => {
-                let target_width = Val::Px(touch_target_base_size(f32::from(*width), touch_scale));
-                let target_height =
-                    Val::Px(touch_target_base_size(f32::from(*height), touch_scale));
-                if node.min_width != target_width {
-                    node.min_width = target_width;
-                }
-                if node.min_height != target_height {
-                    node.min_height = target_height;
-                }
+        }
+        crate::bevy_presentation::UiTouchTargetShape::MinimumBounds { width, height } => {
+            let target_width = Val::Px(touch_target_base_size(f32::from(*width), touch_scale));
+            let target_height = Val::Px(touch_target_base_size(f32::from(*height), touch_scale));
+            if node.min_width != target_width {
+                node.min_width = target_width;
             }
-            crate::bevy_presentation::UiTouchTargetShape::Square => {
-                if node.width != target_touch_size {
-                    node.width = target_touch_size;
-                }
-                if node.min_width != target_touch_size {
-                    node.min_width = target_touch_size;
-                }
-                if node.height != target_touch_size {
-                    node.height = target_touch_size;
-                }
-                if node.min_height != target_touch_size {
-                    node.min_height = target_touch_size;
-                }
+            if node.min_height != target_height {
+                node.min_height = target_height;
+            }
+        }
+        crate::bevy_presentation::UiTouchTargetShape::Square => {
+            if node.width != target_touch_size {
+                node.width = target_touch_size;
+            }
+            if node.min_width != target_touch_size {
+                node.min_width = target_touch_size;
+            }
+            if node.height != target_touch_size {
+                node.height = target_touch_size;
+            }
+            if node.min_height != target_touch_size {
+                node.min_height = target_touch_size;
             }
         }
     }
