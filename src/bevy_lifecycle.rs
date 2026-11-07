@@ -132,11 +132,13 @@ fn lifecycle_input(
             }
             InputEvent::Tab if lifecycle.phase == LifecyclePhase::CreateCharacter => {
                 let next_tab = (lifecycle.creation_tab + 1) % 3;
+                input_focus.clear();
                 select_creation_tab(&mut lifecycle, &mut navigation, next_tab);
             }
             InputEvent::SelectTab(tab)
                 if lifecycle.phase == LifecyclePhase::CreateCharacter && tab < 3 =>
             {
+                input_focus.clear();
                 select_creation_tab(&mut lifecycle, &mut navigation, tab);
             }
             InputEvent::Cancel => handle_cancel(&mut lifecycle, &mut navigation),
@@ -151,8 +153,14 @@ fn lifecycle_input(
                     {
                         input_focus.set(entity, FocusCause::Navigated);
                     }
-                } else if let Some(exit) = activate_selection(&mut lifecycle, &mut navigation) {
-                    if exit {
+                } else {
+                    // A focused field's submit action advances the creation flow.
+                    // Clear focus before changing the selected field or tab so
+                    // the Android bridge closes the keyboard instead of retaining
+                    // a stale text target.
+                    input_focus.clear();
+                    if let Some(exit) = activate_selection(&mut lifecycle, &mut navigation) {
+                        if exit {
                         #[cfg(target_os = "android")]
                         {
                             request_android_game_exit();
@@ -161,7 +169,8 @@ fn lifecycle_input(
                         {
                             commands.write_message(AppExit::Success);
                         }
-                        return;
+                            return;
+                        }
                     }
                 }
             }
@@ -184,18 +193,11 @@ fn lifecycle_input(
         }
     }
 
-    let selected_field = if lifecycle.phase == LifecyclePhase::CreateCharacter {
-        fields
-            .iter()
-            .find(|(_, field)| field.index == lifecycle.selected)
-            .map(|(entity, _)| entity)
-    } else {
-        None
-    };
-    let focused_field = input_focus
-        .get()
-        .filter(|entity| fields.get(*entity).is_ok());
-    if focused_field.is_some() && focused_field != selected_field {
+    if lifecycle.phase != LifecyclePhase::CreateCharacter
+        && input_focus
+            .get()
+            .is_some_and(|entity| fields.get(entity).is_ok())
+    {
         input_focus.clear();
     }
 }
